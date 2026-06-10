@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Fondo del preview del widget: mismo look que el widget real
+     (oscuro translúcido, esquinas redondeadas) -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="#E6101418" />
+    <corners android:radius="16dp" />
+</shape>

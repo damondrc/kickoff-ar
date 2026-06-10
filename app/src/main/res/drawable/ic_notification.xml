@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ícono para la barra de estado (debe ser monocromo: Android
+     lo tiñe y solo usa el canal alfa). Pelota simplificada. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+
+    <!-- Círculo de la pelota -->
+    <path
+        android:pathData="M12,12 m-9,0 a9,9 0 1,1 18,0 a9,9 0 1,1 -18,0"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="2"
+        android:fillColor="#00000000" />
+
+    <!-- Pentágono central -->
+    <path
+        android:pathData="M12,8.5 L8.7,10.9 L10,14.8 L14,14.8 L15.3,10.9 Z"
+        android:fillColor="#FFFFFF" />
+</vector>

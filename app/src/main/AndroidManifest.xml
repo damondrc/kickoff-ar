@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- Internet: API de ESPN y descarga de escudos -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- Estado de red: WorkManager lo usa para la constraint CONNECTED -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!-- Notificaciones de partidos: obligatorio pedirlo en runtime
+         desde Android 13 (se pide al activar un switch de ajustes) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <application
+        android:name=".FutbolWidgetsApp"
+        android:allowBackup="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.FútbolArgentinoWidgets">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:theme="@style/Theme.FútbolArgentinoWidgets">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- ====================================================
+             Pantalla de configuración del widget.
+             Android la abre automáticamente al agregar una
+             instancia, gracias al intent-filter CONFIGURE y al
+             atributo android:configure del appwidget-provider.
+             ==================================================== -->
+        <activity
+            android:name=".widget.config.WidgetConfigActivity"
+            android:exported="true"
+            android:theme="@style/Theme.FútbolArgentinoWidgets">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
+            </intent-filter>
+        </activity>
+
+        <!-- ====================================================
+             Receiver del widget (Glance).
+             android:resource apunta a los metadatos del widget.
+             ==================================================== -->
+        <receiver
+            android:name=".widget.NextMatchWidgetReceiver"
+            android:exported="true"
+            android:label="@string/app_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/next_match_widget_info" />
+        </receiver>
+
+        <!-- ====================================================
+             WorkManager + Hilt: desactivamos el inicializador
+             automático para que WorkManager use la configuración
+             de FutbolWidgetsApp (HiltWorkerFactory). Sin esto,
+             @HiltWorker no recibe sus dependencias.
+             ==================================================== -->
+        <provider
+            android:name="androidx.startup.InitializationProvider"
+            android:authorities="${applicationId}.androidx-startup"
+            android:exported="false"
+            tools:node="merge">
+            <meta-data
+                android:name="androidx.work.WorkManagerInitializer"
+                android:value="androidx.startup"
+                tools:node="remove" />
+        </provider>
+
+    </application>
+
+</manifest>

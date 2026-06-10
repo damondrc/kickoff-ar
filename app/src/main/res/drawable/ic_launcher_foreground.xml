@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ============================================================
+     Logo de Kickoff AR (foreground del ícono adaptativo) — v2.
+
+     CAMBIO vs. v1: se eliminó el "arco de movimiento". Quedaba
+     fuera de la zona segura del ícono adaptativo (círculo
+     central de 66dp) y al recortarse en el launcher parecía una
+     sonrisa torcida. Ahora es solo la pelota, perfectamente
+     centrada en (54,54): se ve íntegra con cualquier máscara
+     (círculo, squircle, redondeada) y en cualquier animación.
+     ============================================================ -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Pelota (centrada, r=21: entra cómoda en la zona segura) -->
+    <path
+        android:pathData="M54,54 m-21,0 a21,21 0 1,1 42,0 a21,21 0 1,1 -42,0"
+        android:fillColor="#FFFFFF" />
+    <path
+        android:pathData="M54,54 m-21,0 a21,21 0 1,1 42,0 a21,21 0 1,1 -42,0"
+        android:strokeColor="#0E1B2A"
+        android:strokeWidth="1.5"
+        android:fillColor="#00000000" />
+
+    <!-- Panel pentagonal central (celeste) -->
+    <path
+        android:pathData="M54,46.5 L46.9,51.7 L49.6,60.1 L58.4,60.1 L61.1,51.7 Z"
+        android:fillColor="#74ACDF" />
+
+    <!-- Costuras: del pentágono hacia el borde de la pelota -->
+    <path
+        android:pathData="M54,46.5 L54,34"
+        android:strokeColor="#74ACDF"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000" />
+    <path
+        android:pathData="M46.9,51.7 L35,47.8"
+        android:strokeColor="#74ACDF"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000" />
+    <path
+        android:pathData="M49.6,60.1 L42.2,70.2"
+        android:strokeColor="#74ACDF"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000" />
+    <path
+        android:pathData="M58.4,60.1 L65.8,70.2"
+        android:strokeColor="#74ACDF"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000" />
+    <path
+        android:pathData="M61.1,51.7 L73,47.8"
+        android:strokeColor="#74ACDF"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000" />
+</vector>

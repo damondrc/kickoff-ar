@@ -1,0 +1,188 @@
+# ==============================================================
+# gradle/libs.versions.toml
+# ==============================================================
+# Version Catalog: centraliza TODAS las versiones en un solo lugar.
+#
+# ¿Cómo funciona?
+# - [versions]   → Definís números de versión con un nombre
+# - [libraries]  → Definís dependencias usando esas versiones
+# - [plugins]    → Definís plugins de Gradle usando esas versiones
+#
+# Después en build.gradle.kts usás "alias" para referenciarlas.
+# Ejemplo: libs.compose.material3 → apunta a material3 de Compose
+# ==============================================================
+
+[versions]
+# === Android Gradle Plugin & Kotlin ===
+# Estos los generó tu Android Studio — son las versiones actuales correctas
+agp = "9.2.1"
+kotlin = "2.2.10"
+
+# === KSP (Kotlin Symbol Processing) ===
+# REGLA: la primera parte SIEMPRE debe coincidir con tu versión de Kotlin
+# Kotlin 2.2.10 → KSP 2.2.10-x.x.x
+ksp = "2.2.10-2.0.2"
+
+# === Core Android ===
+coreKtx = "1.16.0"
+lifecycleRuntime = "2.9.0"
+activityCompose = "1.10.1"
+
+# === Jetpack Compose ===
+# BOM = Bill of Materials. Sincroniza versiones de TODAS las libs de Compose.
+# Tu Android Studio generó esta versión, es la correcta.
+composeBom = "2026.02.01"
+navigationCompose = "2.9.0"
+
+# === Glance (Widgets) ===
+# 1.1.1 es la última versión estable de Glance
+# 1.2.0-rc01 existe pero es release candidate (puede tener bugs menores)
+glance = "1.1.1"
+
+# === Room (Base de datos local) ===
+# Room 3.0 existe pero está en alpha. Usamos 2.8.x que es estable.
+# Room 2.x está en "maintenance mode" = recibe bugfixes pero no features nuevas.
+# Para nuestro proyecto, 2.8.x es perfecto y muy maduro.
+room = "2.8.1"
+
+# === Hilt (Inyección de dependencias) ===
+# Hilt 2.57.1 es la última estable, compatible con AGP 9 y KSP2
+hilt = "2.59.2"
+hiltNavigationCompose = "1.2.0"
+
+# === Retrofit (HTTP Client para APIs REST) ===
+retrofit = "2.11.0"
+okhttp = "4.12.0"
+
+# === WorkManager (Tareas en segundo plano) ===
+workManager = "2.10.1"
+hiltWork = "1.2.0"
+
+# === DataStore (Preferencias del usuario — reemplazo de SharedPreferences) ===
+datastore = "1.1.4"
+
+# === Coil (Carga de imágenes — escudos de equipos) ===
+coil = "2.7.0"
+
+# === Testing ===
+junit = "4.13.2"
+junitVersion = "1.2.1"
+espressoCore = "3.6.1"
+
+
+[libraries]
+# -------------------------------------------------------
+# CORE ANDROID
+# -------------------------------------------------------
+# Extensiones de Kotlin que simplifican APIs de Android
+androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
+
+# Lifecycle: gestiona el ciclo de vida de Activities, Fragments, ViewModels
+# "runtime-compose" integra Lifecycle directamente con Compose
+androidx-lifecycle-runtime = { group = "androidx.lifecycle", name = "lifecycle-runtime-compose", version.ref = "lifecycleRuntime" }
+# ViewModel con soporte para Compose (viewModel() en composables)
+androidx-lifecycle-viewmodel = { group = "androidx.lifecycle", name = "lifecycle-viewmodel-compose", version.ref = "lifecycleRuntime" }
+
+# -------------------------------------------------------
+# JETPACK COMPOSE
+# -------------------------------------------------------
+# BOM: con esto, las libs de Compose no necesitan versión individual
+compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }
+# UI base: Canvas, Layout, Drawing, Input
+compose-ui = { group = "androidx.compose.ui", name = "ui" }
+# Gráficos: Canvas, formas, colores
+compose-ui-graphics = { group = "androidx.compose.ui", name = "ui-graphics" }
+# Preview: ver tus composables sin correr la app
+compose-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling-preview" }
+# Tooling completo (solo debug — incluye layout inspector)
+compose-ui-tooling = { group = "androidx.compose.ui", name = "ui-tooling" }
+# Material 3: sistema de diseño de Google (botones, cards, colores, etc.)
+compose-material3 = { group = "androidx.compose.material3", name = "material3" }
+# Integra Activity con Compose (setContent {})
+compose-activity = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
+# Navegación entre pantallas en Compose
+compose-navigation = { group = "androidx.navigation", name = "navigation-compose", version.ref = "navigationCompose" }
+
+# -------------------------------------------------------
+# GLANCE APP WIDGETS
+# -------------------------------------------------------
+# Motor principal de Glance: permite crear widgets con sintaxis Compose-like
+glance-appwidget = { group = "androidx.glance", name = "glance-appwidget", version.ref = "glance" }
+# Componentes Material 3 para widgets (Scaffold, TitleBar, etc.)
+glance-material3 = { group = "androidx.glance", name = "glance-material3", version.ref = "glance" }
+
+# -------------------------------------------------------
+# ROOM (Base de datos local SQLite)
+# -------------------------------------------------------
+# Motor de Room
+room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }
+# Extensiones Kotlin: soporte para coroutines y Flow en queries
+room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room" }
+# Compilador: genera las implementaciones de tus DAOs automáticamente
+room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
+
+# -------------------------------------------------------
+# HILT (Inyección de dependencias)
+# -------------------------------------------------------
+# Core de Hilt para Android
+hilt-android = { group = "com.google.dagger", name = "hilt-android", version.ref = "hilt" }
+# Procesador que genera el código de inyección
+hilt-compiler = { group = "com.google.dagger", name = "hilt-android-compiler", version.ref = "hilt" }
+# Integración con Navigation Compose (hiltViewModel())
+hilt-navigation-compose = { group = "androidx.hilt", name = "hilt-navigation-compose", version.ref = "hiltNavigationCompose" }
+# Integración con WorkManager (inyectar dependencias en Workers)
+hilt-work = { group = "androidx.hilt", name = "hilt-work", version.ref = "hiltWork" }
+# Compilador de AndroidX Hilt (necesario para hilt-work)
+hilt-work-compiler = { group = "androidx.hilt", name = "hilt-compiler", version.ref = "hiltWork" }
+
+# -------------------------------------------------------
+# RETROFIT + OKHTTP (Cliente HTTP)
+# -------------------------------------------------------
+# Retrofit: convierte interfaces Kotlin en clientes HTTP automáticamente
+retrofit-core = { group = "com.squareup.retrofit2", name = "retrofit", version.ref = "retrofit" }
+# Converter Gson: serializa/deserializa JSON ↔ data classes
+retrofit-gson = { group = "com.squareup.retrofit2", name = "converter-gson", version.ref = "retrofit" }
+# OkHttp: el cliente HTTP que Retrofit usa por debajo
+okhttp-core = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
+# Logging: muestra los requests/responses en Logcat durante desarrollo
+okhttp-logging = { group = "com.squareup.okhttp3", name = "logging-interceptor", version.ref = "okhttp" }
+
+# -------------------------------------------------------
+# WORKMANAGER
+# -------------------------------------------------------
+# Ejecuta tareas en segundo plano de forma confiable
+# (sobrevive a reinicios del teléfono, respeta batería)
+work-runtime = { group = "androidx.work", name = "work-runtime-ktx", version.ref = "workManager" }
+
+# -------------------------------------------------------
+# DATASTORE
+# -------------------------------------------------------
+# Almacena preferencias del usuario de forma segura y asincrónica
+# Reemplazo moderno de SharedPreferences
+datastore-preferences = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "datastore" }
+
+# -------------------------------------------------------
+# COIL
+# -------------------------------------------------------
+# Carga imágenes de forma eficiente (para los escudos de equipos)
+# Integrado nativamente con Compose
+coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }
+
+# -------------------------------------------------------
+# TESTING
+# -------------------------------------------------------
+junit = { group = "junit", name = "junit", version.ref = "junit" }
+androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
+androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
+
+
+[plugins]
+# Plugin base para compilar apps Android
+android-application = { id = "com.android.application", version.ref = "agp" }
+# Soporte de Compose en el compilador de Kotlin
+kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+# Hilt: genera código de inyección de dependencias
+hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
+# KSP: procesador de anotaciones moderno (reemplaza a kapt)
+ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
+

@@ -1,0 +1,30 @@
+*.iml
+.gradle
+/local.properties
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+# Firebase config (contiene datos de tu proyecto)
+app/google-services.json
+
+# Build outputs
+*.apk
+*.aab
+/app/build
+
+# Room schema exports
+/app/schemas
+# Caches de Kotlin
+.kotlin/
+
+# Configuración personal del IDE (Android Studio la regenera)
+.idea/
