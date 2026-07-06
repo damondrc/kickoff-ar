@@ -17,16 +17,18 @@ El diseño final es una mezcla de esa idea original y de las adaptaciones que fu
 
 ## Características
 
-El widget se configura **por instancia**: puedes tener varios en pantalla, cada uno siguiendo un equipo distinto de los 30 de la liga. Las notificaciones son opcionales y configurables desde la app: aviso ~30 minutos antes del partido, al comenzar, y al finalizar con el resultado.
+El widget se configura **por instancia**: puedes tener varios en pantalla, cada uno siguiendo un equipo distinto de los 30 de la liga. Y responde a la pregunta completa "¿cuándo juega mi equipo?": sincroniza **todas las competiciones** que disputan los clubes argentinos — Liga Profesional, Copa Argentina, Libertadores y Sudamericana — y muestra el partido que venga primero, indicando el torneo cuando no es de liga. Las notificaciones son opcionales y configurables desde la app: aviso ~30 minutos antes del partido, al comenzar, y al finalizar con el resultado.
 
 La filosofía de actualización es lo central del diseño: **el widget no hace polling**. Sabe a qué hora es el partido, así que sincroniza una vez al inicio, re-chequea cada 30 minutos mientras se juega, muestra el resultado al final, y recién vuelve a actualizar para el siguiente partido. Más un sync diario de respaldo que capta cambios de fixture. Resultado: consumo de batería y datos prácticamente nulo.
 
-## Datos
+## Datos y backend
 
-Usa la API pública de ESPN (la misma que alimenta su sitio web), que no requiere clave ni registro:
+La app consume un **backend propio**: un Cloudflare Worker (`server/worker.js`) que actúa como proxy con caché de borde sobre la API pública de ESPN. El Worker consulta las cuatro competiciones en paralelo, transforma la respuesta a un JSON compacto (~50× más liviano) con los estados ya normalizados, y la cachea 15 minutos — así, todos los usuarios juntos generan sobre ESPN el tráfico de uno solo, y un cambio de formato en la fuente se corrige en el servidor sin publicar actualización de la app.
 
-- `site.api.espn.com/.../soccer/arg.1/scoreboard?dates=...` — fixture, estados y resultados
-- `site.api.espn.com/.../soccer/arg.1/teams` — equipos y escudos
+- `GET /fixtures` — partidos de Liga Profesional, Copa Argentina, Libertadores y Sudamericana
+- `GET /teams` — los 30 equipos de la liga, con escudos
+
+La app conserva además el modo directo a ESPN (flag `USE_PROXY` en `Constants.kt`), útil para desarrollo.
 
 ## Stack técnico
 
@@ -40,21 +42,24 @@ Usa la API pública de ESPN (la misma que alimenta su sitio web), que no requier
 | Tareas en background | WorkManager (workers autoprogramados) |
 | Inyección de dependencias | Hilt (incluye `@HiltWorker`) |
 | Imágenes | Coil (escudos cacheados en disco para el widget) |
+| Backend | Cloudflare Workers (proxy con caché de borde, JS) |
 
 ## Arquitectura
 
 ```
-ESPN API ──Retrofit──► DTOs ──mappers──► Room (única fuente de verdad)
-                                          │
-                            ┌─────────────┼─────────────┐
-                            ▼             ▼             ▼
-                      MatchSyncWorker  WidgetUpdater  MainActivity
-                      (autoprogramado) (escribe estado (fixture +
-                                        Glance)        ajustes)
-                                          │
-                                          ▼
-                                    NextMatchWidget
-                                    (solo lee currentState)
+ESPN API ──► Cloudflare Worker ──► App (Retrofit) ──► Room
+             (caché 15 min,                           (única fuente
+              JSON compacto)                           de verdad)
+                                                        │
+                                          ┌─────────────┼─────────────┐
+                                          ▼             ▼             ▼
+                                    MatchSyncWorker  WidgetUpdater  MainActivity
+                                    (autoprogramado) (escribe estado (fixture +
+                                                      Glance)        ajustes)
+                                                        │
+                                                        ▼
+                                                  NextMatchWidget
+                                                  (solo lee currentState)
 ```
 
 ## Lo que aprendí en el camino

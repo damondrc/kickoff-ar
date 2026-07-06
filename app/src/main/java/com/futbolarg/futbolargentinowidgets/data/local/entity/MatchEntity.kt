@@ -37,6 +37,10 @@ data class MatchEntity(
     // Inicio del partido (epoch millis, UTC)
     val kickoffMillis: Long,
 
+    // Competición a la que pertenece ("Liga Profesional",
+    // "Copa Argentina", "Libertadores", "Sudamericana")
+    val leagueName: String,
+
     // Nombre del enum MatchStatus (ej: "SCHEDULED", "FINISHED")
     val status: String,
 

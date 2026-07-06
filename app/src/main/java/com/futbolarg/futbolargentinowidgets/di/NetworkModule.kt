@@ -2,6 +2,7 @@ package com.futbolarg.futbolargentinowidgets.di
 
 import com.futbolarg.futbolargentinowidgets.BuildConfig
 import com.futbolarg.futbolargentinowidgets.data.remote.api.EspnApiService
+import com.futbolarg.futbolargentinowidgets.data.remote.api.KickoffApiService
 import com.futbolarg.futbolargentinowidgets.util.Constants
 import dagger.Module
 import dagger.Provides
@@ -67,7 +68,7 @@ object NetworkModule {
     }
 
     // ========================================================
-    // API SERVICE
+    // API SERVICE — ESPN (fuente directa)
     // ========================================================
     @Provides
     @Singleton
@@ -75,5 +76,27 @@ object NetworkModule {
         retrofit: Retrofit
     ): EspnApiService {
         return retrofit.create(EspnApiService::class.java)
+    }
+
+    // ========================================================
+    // API SERVICE — Proxy (nuestro Cloudflare Worker)
+    // ========================================================
+    // Segunda instancia de Retrofit porque la base URL es otra,
+    // pero REUTILIZA el mismo OkHttpClient (timeouts, logging y
+    // pool de conexiones compartidos). Se crea siempre, pero si
+    // USE_PROXY es false nunca se usa — crear el objeto es
+    // barato, lo costoso serían las llamadas.
+    // ========================================================
+    @Provides
+    @Singleton
+    fun provideKickoffApiService(
+        okHttpClient: OkHttpClient
+    ): KickoffApiService {
+        return Retrofit.Builder()
+            .baseUrl(Constants.PROXY_BASE_URL)
+            .client(okHttpClient)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+            .create(KickoffApiService::class.java)
     }
 }

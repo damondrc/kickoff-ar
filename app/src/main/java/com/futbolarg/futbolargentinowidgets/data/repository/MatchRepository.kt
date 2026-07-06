@@ -5,7 +5,9 @@ import com.futbolarg.futbolargentinowidgets.data.local.dao.MatchDao
 import com.futbolarg.futbolargentinowidgets.data.mapper.toDomainModel
 import com.futbolarg.futbolargentinowidgets.data.mapper.toDomainModelList
 import com.futbolarg.futbolargentinowidgets.data.mapper.toEntityList
+import com.futbolarg.futbolargentinowidgets.data.mapper.toEntityListFromProxy
 import com.futbolarg.futbolargentinowidgets.data.remote.api.EspnApiService
+import com.futbolarg.futbolargentinowidgets.data.remote.api.KickoffApiService
 import com.futbolarg.futbolargentinowidgets.domain.model.Match
 import com.futbolarg.futbolargentinowidgets.domain.model.Team
 import com.futbolarg.futbolargentinowidgets.util.Constants
@@ -37,6 +39,7 @@ import javax.inject.Singleton
 @Singleton
 class MatchRepository @Inject constructor(
     private val apiService: EspnApiService,
+    private val proxyService: KickoffApiService,
     private val matchDao: MatchDao
 ) {
 
@@ -57,36 +60,75 @@ class MatchRepository @Inject constructor(
     // SINCRONIZAR (ESPN → Room)
     // ========================================================
 
-    // Pide a ESPN todos los partidos de la liga en la ventana
+    // Pide a ESPN los partidos de TODAS las competiciones que
+    // disputan los equipos argentinos (liga, Copa Argentina,
+    // Libertadores, Sudamericana) en la ventana
     // [hoy - SYNC_DAYS_BACK, hoy + SYNC_DAYS_FORWARD] y los
-    // guarda en Room. Devuelve true si salió bien.
+    // mezcla en Room. Así el widget responde "¿cuándo juega
+    // Boca?" sin importar el torneo.
+    //
+    // Cada competición se sincroniza por separado: si una falla
+    // (endpoint caído, torneo sin datos), las demás igual se
+    // guardan. Devuelve true si AL MENOS una salió bien.
+    //
+    // FUENTE: según Constants.USE_PROXY va directo a ESPN o a
+    // nuestro Cloudflare Worker. El resto de la app no se entera:
+    // ambas rutas terminan escribiendo las mismas entities en Room.
     suspend fun syncFixtures(): Boolean {
+        return if (Constants.USE_PROXY) syncFromProxy() else syncFromEspn()
+    }
+
+    // ---- Ruta 1: nuestro Worker (1 request, JSON compacto) ----
+    private suspend fun syncFromProxy(): Boolean {
         return try {
-            val today = LocalDate.now(ZoneOffset.UTC)
-            val from = today.minusDays(Constants.SYNC_DAYS_BACK).format(DATE_FORMAT)
-            val to = today.plusDays(Constants.SYNC_DAYS_FORWARD).format(DATE_FORMAT)
-
-            Log.d(TAG, "Sincronizando fixture $from-$to...")
-            val response = apiService.getScoreboard(
-                league = Constants.LEAGUE_SLUG,
-                dates = "$from-$to"
-            )
-
-            val entities = response.events.toEntityList()
+            Log.d(TAG, "Sincronizando vía proxy...")
+            val response = proxyService.getFixtures()
+            val entities = response.matches.toEntityListFromProxy()
             matchDao.insertMatches(entities)
 
-            // Limpieza: borra terminados de hace más de 30 días
             val cutoff = System.currentTimeMillis() - TimeUnit.DAYS.toMillis(30)
             matchDao.deleteOldFinishedMatches(cutoff)
 
-            Log.d(TAG, "Sync OK: ${entities.size} partidos guardados")
+            Log.d(TAG, "Proxy OK: ${entities.size} partidos (datos de ${response.updatedAt})")
             true
         } catch (e: Exception) {
-            // Sin internet o API caída: no crasheamos, Room
-            // conserva los últimos datos conocidos.
-            Log.e(TAG, "Error sincronizando fixture: ${e.message}", e)
+            Log.e(TAG, "Error sincronizando vía proxy: ${e.message}", e)
             false
         }
+    }
+
+    // ---- Ruta 2: ESPN directo (4 requests, una por competición) ----
+    private suspend fun syncFromEspn(): Boolean {
+        val today = LocalDate.now(ZoneOffset.UTC)
+        val from = today.minusDays(Constants.SYNC_DAYS_BACK).format(DATE_FORMAT)
+        val to = today.plusDays(Constants.SYNC_DAYS_FORWARD).format(DATE_FORMAT)
+
+        var anySuccess = false
+
+        Constants.LEAGUES.forEach { (slug, name) ->
+            try {
+                Log.d(TAG, "Sincronizando $name ($slug) $from-$to...")
+                val response = apiService.getScoreboard(
+                    league = slug,
+                    dates = "$from-$to"
+                )
+                val entities = response.events.toEntityList(name)
+                matchDao.insertMatches(entities)
+                anySuccess = true
+                Log.d(TAG, "$name OK: ${entities.size} partidos")
+            } catch (e: Exception) {
+                // Esta competición falló; seguimos con las demás.
+                Log.e(TAG, "Error sincronizando $name: ${e.message}")
+            }
+        }
+
+        if (anySuccess) {
+            // Limpieza: borra terminados de hace más de 30 días
+            val cutoff = System.currentTimeMillis() - TimeUnit.DAYS.toMillis(30)
+            matchDao.deleteOldFinishedMatches(cutoff)
+        }
+
+        return anySuccess
     }
 
     // ========================================================
@@ -155,11 +197,17 @@ class MatchRepository @Inject constructor(
 
     // Lista de equipos de la liga para la pantalla de
     // configuración. Requiere internet (solo se usa al
-    // agregar/configurar un widget).
+    // agregar/configurar un widget). También respeta USE_PROXY.
     suspend fun getTeams(): List<Team> {
-        val response = apiService.getTeams(league = Constants.LEAGUE_SLUG)
-        return response.allTeams()
-            .mapNotNull { it.toDomainModel() }
-            .sortedBy { it.name }
+        return if (Constants.USE_PROXY) {
+            proxyService.getTeams()
+                .mapNotNull { it.toDomainModel() }
+                .sortedBy { it.name }
+        } else {
+            apiService.getTeams(league = Constants.LEAGUE_SLUG)
+                .allTeams()
+                .mapNotNull { it.toDomainModel() }
+                .sortedBy { it.name }
+        }
     }
 }

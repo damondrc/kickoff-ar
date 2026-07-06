@@ -3,6 +3,8 @@ package com.futbolarg.futbolargentinowidgets.data.mapper
 import com.futbolarg.futbolargentinowidgets.data.local.entity.MatchEntity
 import com.futbolarg.futbolargentinowidgets.data.remote.dto.EspnEventDto
 import com.futbolarg.futbolargentinowidgets.data.remote.dto.EspnTeamListItemDto
+import com.futbolarg.futbolargentinowidgets.data.remote.dto.ProxyMatchDto
+import com.futbolarg.futbolargentinowidgets.data.remote.dto.ProxyTeamDto
 import com.futbolarg.futbolargentinowidgets.domain.model.Match
 import com.futbolarg.futbolargentinowidgets.domain.model.MatchStatus
 import com.futbolarg.futbolargentinowidgets.domain.model.Team
@@ -53,8 +55,12 @@ fun parseEspnDate(date: String): Long? {
 // ============================================================
 // Devuelve null si el evento viene incompleto (lo descartamos
 // en lugar de crashear o guardar basura).
+//
+// leagueName: el nombre de la competición NO viene en cada
+// evento del scoreboard, así que lo pasa el repositorio según
+// qué liga estaba consultando.
 // ============================================================
-fun EspnEventDto.toEntity(): MatchEntity? {
+fun EspnEventDto.toEntity(leagueName: String): MatchEntity? {
     val competition = competitions.firstOrNull() ?: return null
 
     // Local y visitante según el campo homeAway (NUNCA por orden
@@ -86,6 +92,7 @@ fun EspnEventDto.toEntity(): MatchEntity? {
         awayTeamAbbr = awayTeam.abbreviation ?: "",
         awayTeamLogo = awayTeam.logo ?: "",
         kickoffMillis = kickoff,
+        leagueName = leagueName,
         status = status.name,
         homeScore = if (scoresValid) home.score?.toIntOrNull() else null,
         awayScore = if (scoresValid) away.score?.toIntOrNull() else null
@@ -93,8 +100,8 @@ fun EspnEventDto.toEntity(): MatchEntity? {
 }
 
 // Lista de eventos → lista de entities (descarta los inválidos)
-fun List<EspnEventDto>.toEntityList(): List<MatchEntity> {
-    return mapNotNull { it.toEntity() }
+fun List<EspnEventDto>.toEntityList(leagueName: String): List<MatchEntity> {
+    return mapNotNull { it.toEntity(leagueName) }
 }
 
 // ============================================================
@@ -112,6 +119,7 @@ fun MatchEntity.toDomainModel(): Match {
         awayTeamAbbr = awayTeamAbbr,
         awayTeamLogo = awayTeamLogo,
         kickoffMillis = kickoffMillis,
+        leagueName = leagueName,
         status = MatchStatus.fromName(status),
         homeScore = homeScore,
         awayScore = awayScore
@@ -131,5 +139,46 @@ fun EspnTeamListItemDto.toDomainModel(): Team? {
         name = displayName ?: return null,
         abbreviation = abbreviation ?: "",
         logoUrl = logoUrl()
+    )
+}
+
+// ============================================================
+// DTOs del PROXY (nuestro Cloudflare Worker) → Entity/Team
+// ============================================================
+// Mucho más simples que los de ESPN: el Worker ya hizo la
+// transformación pesada (fechas a epoch, estados a nombres de
+// nuestro enum, local/visitante resueltos). Aquí solo validamos.
+// ============================================================
+
+fun ProxyMatchDto.toEntity(): MatchEntity? {
+    return MatchEntity(
+        id = id ?: return null,
+        homeTeamId = homeId ?: return null,
+        homeTeamName = homeName ?: "",
+        homeTeamAbbr = homeAbbr ?: "",
+        homeTeamLogo = homeLogo ?: "",
+        awayTeamId = awayId ?: return null,
+        awayTeamName = awayName ?: "",
+        awayTeamAbbr = awayAbbr ?: "",
+        awayTeamLogo = awayLogo ?: "",
+        kickoffMillis = kickoffMillis ?: return null,
+        leagueName = league ?: "",
+        // fromName valida: si llega algo raro, queda UNKNOWN
+        status = MatchStatus.fromName(status ?: "").name,
+        homeScore = homeScore,
+        awayScore = awayScore
+    )
+}
+
+fun List<ProxyMatchDto>.toEntityListFromProxy(): List<MatchEntity> {
+    return mapNotNull { it.toEntity() }
+}
+
+fun ProxyTeamDto.toDomainModel(): Team? {
+    return Team(
+        id = id ?: return null,
+        name = name ?: return null,
+        abbreviation = abbr ?: "",
+        logoUrl = logo ?: ""
     )
 }

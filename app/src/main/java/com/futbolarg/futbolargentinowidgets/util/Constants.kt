@@ -14,12 +14,39 @@ package com.futbolarg.futbolargentinowidgets.util
 object Constants {
 
     // ========================
-    // ESPN API
+    // Fuente de datos
+    // ========================
+    // false → la app consulta ESPN directamente (4 requests/sync)
+    // true  → la app consulta TU Cloudflare Worker (1 request/sync,
+    //         con caché de borde compartida entre todos los usuarios)
+    //
+    // Para activar el proxy: despliega server/worker.js en
+    // Cloudflare, pega tu URL en PROXY_BASE_URL y pon esto en true.
+    const val USE_PROXY = true
+
+    // URL del Worker desplegado (siempre con "/" final)
+    const val PROXY_BASE_URL = "https://kickoff-ar.damondrc99.workers.dev/"
+
+    // ========================
+    // ESPN API (fuente directa)
     // ========================
     const val ESPN_BASE_URL = "https://site.api.espn.com/apis/site/v2/sports/soccer/"
 
-    // Slug de la Liga Profesional Argentina en ESPN
+    // Slug de la Liga Profesional Argentina en ESPN.
+    // Se usa para el listado de EQUIPOS (los 30 de Primera).
     const val LEAGUE_SLUG = "arg.1"
+
+    // Competiciones que se sincronizan (slug → nombre a mostrar).
+    // Así el widget responde "¿cuándo juega Boca?" sin importar
+    // si el próximo partido es de liga, copa o torneo continental.
+    // El orden importa solo para logs; los partidos se mezclan
+    // en Room y se ordenan por fecha.
+    val LEAGUES: Map<String, String> = mapOf(
+        "arg.1" to "Liga Profesional",
+        "arg.copa" to "Copa Argentina",
+        "conmebol.libertadores" to "Libertadores",
+        "conmebol.sudamericana" to "Sudamericana"
+    )
 
     // Ventana de sincronización del fixture:
     // miramos unos días hacia atrás (último resultado) y varios

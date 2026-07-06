@@ -250,11 +250,18 @@ private fun MatchCard(match: Match) {
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text(
-                text = "${match.homeTeamAbbr} vs ${match.awayTeamAbbr}",
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Medium
-            )
+            Column {
+                Text(
+                    text = "${match.homeTeamAbbr} vs ${match.awayTeamAbbr}",
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Medium
+                )
+                Text(
+                    text = match.leagueName,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
             Text(
                 text = if (match.status.isLive) {
                     "● Jugando"

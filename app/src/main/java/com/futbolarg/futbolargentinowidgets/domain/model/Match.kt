@@ -28,6 +28,9 @@ data class Match(
     // en hora local del teléfono.
     val kickoffMillis: Long,
 
+    // Competición ("Liga Profesional", "Copa Argentina", etc.)
+    val leagueName: String,
+
     val status: MatchStatus,
     val homeScore: Int?,          // null si no empezó
     val awayScore: Int?           // null si no empezó

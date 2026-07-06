@@ -131,10 +131,19 @@ class WidgetUpdater @Inject constructor(
     }
 
     private fun buildStatusLine(match: Match): String {
-        return when {
+        val base = when {
             match.status.isLive -> "● Jugando"
             match.status.isFinished -> "Final"
             else -> DateFormatting.formatKickoff(match.kickoffMillis)
+        }
+
+        // Si el partido NO es de la liga (copa o torneo continental),
+        // agregamos la competición: "sáb 12 jul · 16:15 · Copa Argentina".
+        // Para la liga no, para mantener el widget minimalista.
+        return if (match.leagueName != "Liga Profesional" && match.leagueName.isNotBlank()) {
+            "$base · ${match.leagueName}"
+        } else {
+            base
         }
     }
 
