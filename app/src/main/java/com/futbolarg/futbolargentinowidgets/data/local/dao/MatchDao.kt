@@ -84,6 +84,17 @@ interface MatchDao {
     )
     suspend fun getNextKickoff(teamId: Int, now: Long): Long?
 
+    // Kickoff del partido EN VIVO más antiguo de estos equipos
+    // (para calcular cuánto lleva jugándose y adaptar el polling)
+    @Query(
+        """
+        SELECT MIN(kickoffMillis) FROM matches
+        WHERE (homeTeamId IN (:teamIds) OR awayTeamId IN (:teamIds))
+          AND status IN ('FIRST_HALF','HALFTIME','SECOND_HALF','LIVE')
+        """
+    )
+    suspend fun getLiveKickoff(teamIds: List<Int>): Long?
+
     // ¿Hay algún partido en vivo de alguno de estos equipos?
     @Query(
         """

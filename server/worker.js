@@ -40,10 +40,16 @@ const ESPN_BASE = "https://site.api.espn.com/apis/site/v2/sports/soccer";
 const DAYS_BACK = 7;
 const DAYS_FORWARD = 90;
 
-// TTL de la caché en segundos (15 min). Durante este tiempo,
-// TODAS las peticiones se responden desde la caché del borde
-// sin tocar ESPN.
-const CACHE_TTL_SECONDS = 900;
+// TTL de la caché en segundos. Durante este tiempo, TODAS las
+// peticiones se responden desde la caché del borde sin tocar ESPN.
+//
+// TTL DINÁMICO: si hay algún partido EN VIVO, la caché dura solo
+// 5 min (para que el marcador y el final lleguen frescos a las
+// apps que están en fase de polling corto); si no hay nada en
+// juego, 15 min. Los equipos casi no cambian: 6 horas.
+const TTL_LIVE = 300;      // 5 min  (hay partido en juego)
+const TTL_NORMAL = 900;    // 15 min (sin partidos en vivo)
+const TTL_TEAMS = 21600;   // 6 h    (lista de equipos)
 
 // ------------------------------------------------------------
 // Punto de entrada: Cloudflare llama a fetch() en cada petición
@@ -62,11 +68,18 @@ export default {
 
     // 2. No hay caché fresca: construir la respuesta
     let data;
+    let ttl;
     try {
       if (url.pathname === "/fixtures") {
         data = await buildFixtures();
+        // TTL dinámico: caché corta si hay partido en juego
+        const hasLive = data.matches.some((m) =>
+          ["FIRST_HALF", "HALFTIME", "SECOND_HALF", "LIVE"].includes(m.status)
+        );
+        ttl = hasLive ? TTL_LIVE : TTL_NORMAL;
       } else if (url.pathname === "/teams") {
         data = await buildTeams();
+        ttl = TTL_TEAMS;
       } else {
         return json({ error: "Rutas disponibles: /fixtures, /teams" }, 404);
       }
@@ -76,10 +89,10 @@ export default {
       return json({ error: "Error consultando la fuente: " + e.message }, 502);
     }
 
-    // 3. Responder y guardar en caché con el TTL configurado.
+    // 3. Responder y guardar en caché con el TTL calculado.
     //    "max-age" es lo que le dice a la caché cuánto vive.
     const response = json(data, 200, {
-      "cache-control": `public, max-age=${CACHE_TTL_SECONDS}`,
+      "cache-control": `public, max-age=${ttl}`,
     });
 
     // waitUntil = "termina esto en segundo plano aunque la

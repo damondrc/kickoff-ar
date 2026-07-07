@@ -12,6 +12,7 @@ import coil.request.ImageRequest
 import com.futbolarg.futbolargentinowidgets.data.preferences.WidgetPreferences
 import com.futbolarg.futbolargentinowidgets.data.repository.MatchRepository
 import com.futbolarg.futbolargentinowidgets.domain.model.Match
+import com.futbolarg.futbolargentinowidgets.util.Constants
 import com.futbolarg.futbolargentinowidgets.util.DateFormatting
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
@@ -140,7 +141,7 @@ class WidgetUpdater @Inject constructor(
         // Si el partido NO es de la liga (copa o torneo continental),
         // agregamos la competición: "sáb 12 jul · 16:15 · Copa Argentina".
         // Para la liga no, para mantener el widget minimalista.
-        return if (match.leagueName != "Liga Profesional" && match.leagueName.isNotBlank()) {
+        return if (match.leagueName != Constants.DOMESTIC_LEAGUE_NAME && match.leagueName.isNotBlank()) {
             "$base · ${match.leagueName}"
         } else {
             base

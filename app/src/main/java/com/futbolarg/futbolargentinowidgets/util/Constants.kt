@@ -61,8 +61,18 @@ object Constants {
     const val SYNC_WORK_NAME = "match_sync_work"
     // Nombre del sync diario de seguridad (capta cambios de fixture)
     const val DAILY_SYNC_WORK_NAME = "daily_match_sync_work"
-    // Cada cuánto re-chequeamos mientras hay un partido en juego
+    // Nombre de la liga doméstica (el widget omite la competición
+    // solo para esta, por minimalismo)
+    val DOMESTIC_LEAGUE_NAME: String = LEAGUES.getValue("arg.1")
+
+    // ---- Polling durante el partido (adaptativo) ----
+    // Fase normal: cada 30 min
     const val LIVE_POLL_MINUTES = 30L
+    // Fase final: pasado este tiempo desde el kickoff...
+    const val LIVE_ENDGAME_AFTER_MINUTES = 75L
+    // ...consultamos cada 10 min para detectar el final más cerca
+    // del pitazo real (el TTL del Worker baja a 5 min en vivo)
+    const val LIVE_ENDGAME_POLL_MINUTES = 10L
 
     // Worker de notificación previa al partido
     const val PRE_MATCH_WORK_NAME = "pre_match_notification_work"

@@ -30,6 +30,10 @@ import javax.inject.Singleton
 // así un mismo partido puede tener su aviso previo y el de
 // inicio sin pisarse, pero nunca duplica el mismo aviso.
 //
+// Nota de clean code: los ids de ESPN (~400 millones) por 10
+// desbordarían un Int (máx ~2.147 millones). Usamos módulo para
+// mantener el id en rango de forma explícita y determinista.
+//
 // PERMISO: en Android 13+ notificar requiere POST_NOTIFICATIONS
 // (se pide desde la pantalla de ajustes al activar un switch).
 // areNotificationsEnabled() cubre el caso de permiso revocado:
@@ -59,9 +63,13 @@ class MatchNotifier @Inject constructor(
             .createNotificationChannel(channel)
     }
 
+    // Id único y estable por (partido, tipo de aviso), sin overflow
+    private fun notificationId(matchId: Long, kind: Int): Int =
+        ((matchId % 100_000_000) * 10 + kind).toInt()
+
     fun notifyPreMatch(match: Match) {
         show(
-            id = (match.id * 10 + 1).toInt(),
+            id = notificationId(match.id, 1),
             title = "Ya casi arranca",
             text = "${match.homeTeamName} vs ${match.awayTeamName} · " +
                 DateFormatting.formatKickoff(match.kickoffMillis)
@@ -70,7 +78,7 @@ class MatchNotifier @Inject constructor(
 
     fun notifyKickoff(match: Match) {
         show(
-            id = (match.id * 10 + 2).toInt(),
+            id = notificationId(match.id, 2),
             title = "¡Arrancó el partido!",
             text = "${match.homeTeamAbbr} vs ${match.awayTeamAbbr} está en juego"
         )
@@ -78,7 +86,7 @@ class MatchNotifier @Inject constructor(
 
     fun notifyFinished(match: Match) {
         show(
-            id = (match.id * 10 + 3).toInt(),
+            id = notificationId(match.id, 3),
             title = "Final del partido",
             text = "${match.homeTeamAbbr} ${match.homeScore ?: 0} - " +
                 "${match.awayScore ?: 0} ${match.awayTeamAbbr}"

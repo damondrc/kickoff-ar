@@ -90,9 +90,24 @@ class SyncScheduler @Inject constructor(
             return
         }
 
-        val delayMillis: Long = if (repository.hasLiveMatch(teamIds)) {
-            // Hay partido en juego → re-chequear en 30 min
-            TimeUnit.MINUTES.toMillis(Constants.LIVE_POLL_MINUTES)
+        val liveKickoff = repository.getLiveKickoff(teamIds)
+
+        val delayMillis: Long = if (liveKickoff != null) {
+            // Hay partido en juego → polling ADAPTATIVO:
+            // - fase normal: cada 30 min (bajo consumo)
+            // - desde el minuto ~75: cada 10 min, para detectar el
+            //   final lo más cerca posible del pitazo real
+            val elapsedMinutes =
+                (System.currentTimeMillis() - liveKickoff) / 60000
+
+            val pollMinutes = if (elapsedMinutes >= Constants.LIVE_ENDGAME_AFTER_MINUTES) {
+                Constants.LIVE_ENDGAME_POLL_MINUTES
+            } else {
+                Constants.LIVE_POLL_MINUTES
+            }
+
+            Log.d(TAG, "Partido en vivo (min $elapsedMinutes): próximo poll en $pollMinutes min")
+            TimeUnit.MINUTES.toMillis(pollMinutes)
         } else {
             // Buscar el kickoff más cercano entre los equipos seguidos
             val nextKickoff = teamIds

@@ -182,6 +182,14 @@ class MatchRepository @Inject constructor(
         return matchDao.countLiveMatches(teamIds) > 0
     }
 
+    // Kickoff del partido en vivo (null si no hay ninguno).
+    // El scheduler lo usa para saber en qué fase del partido
+    // estamos y elegir el intervalo de polling.
+    suspend fun getLiveKickoff(teamIds: List<Int>): Long? {
+        if (teamIds.isEmpty()) return null
+        return matchDao.getLiveKickoff(teamIds)
+    }
+
     // Partidos de los equipos seguidos desde ayer en adelante.
     // El worker los compara antes/después del sync para detectar
     // transiciones de estado y disparar notificaciones.
