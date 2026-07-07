@@ -98,6 +98,10 @@ compose-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling
 compose-ui-tooling = { group = "androidx.compose.ui", name = "ui-tooling" }
 # Material 3: sistema de diseño de Google (botones, cards, colores, etc.)
 compose-material3 = { group = "androidx.compose.material3", name = "material3" }
+# Íconos de Material (Icons.Filled.*). En Compose BOM recientes
+# ya NO vienen con material3: se declaran aparte y con versión
+# propia (el BOM tampoco los gestiona).
+compose-material-icons = { group = "androidx.compose.material", name = "material-icons-core", version = "1.7.8" }
 # Integra Activity con Compose (setContent {})
 compose-activity = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
 # Navegación entre pantallas en Compose

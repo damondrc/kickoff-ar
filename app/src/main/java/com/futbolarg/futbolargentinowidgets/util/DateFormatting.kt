@@ -38,4 +38,25 @@ object DateFormatting {
             else -> "${dateTime.format(DAY)} · $time"
         }
     }
+
+    // Encabezado de grupo para la lista de partidos:
+    // "Hoy", "Mañana" o "vie 17 jul"
+    fun formatDayHeader(kickoffMillis: Long): String {
+        val zone = ZoneId.systemDefault()
+        val date = Instant.ofEpochMilli(kickoffMillis).atZone(zone)
+        val today = LocalDate.now(zone)
+
+        return when (date.toLocalDate()) {
+            today -> "Hoy"
+            today.plusDays(1) -> "Mañana"
+            else -> date.format(DAY)
+        }
+    }
+
+    // Solo la hora local: "19:15" (para filas agrupadas por día)
+    fun formatTime(kickoffMillis: Long): String {
+        return Instant.ofEpochMilli(kickoffMillis)
+            .atZone(ZoneId.systemDefault())
+            .format(TIME)
+    }
 }

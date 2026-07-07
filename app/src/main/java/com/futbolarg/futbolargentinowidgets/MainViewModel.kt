@@ -3,13 +3,17 @@ package com.futbolarg.futbolargentinowidgets
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.futbolarg.futbolargentinowidgets.data.preferences.AppSettings
+import com.futbolarg.futbolargentinowidgets.data.preferences.WidgetPreferences
 import com.futbolarg.futbolargentinowidgets.data.repository.MatchRepository
 import com.futbolarg.futbolargentinowidgets.domain.model.Match
 import com.futbolarg.futbolargentinowidgets.work.SyncScheduler
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -17,48 +21,97 @@ import javax.inject.Inject
 // ============================================================
 // MainViewModel.kt
 // ============================================================
-// Expone a la pantalla principal:
-// - los próximos partidos de la liga (Flow de Room, se
-//   actualiza solo con cada sync)
-// - los tres ajustes de notificaciones (Flows de DataStore)
+// Estado de la pantalla principal (dos pestañas):
+//
+// PARTIDOS:
+//   - misEquipos: próximos partidos de los equipos que siguen
+//     tus widgets (la sección destacada de arriba)
+//   - fixture: todos los partidos, filtrables por competición
+//   - leagueFilter: el chip seleccionado (null = todas)
+//
+// AJUSTES:
+//   - los tres switches de notificaciones
+//
+// Patrón: la UI no filtra nada; observa StateFlows ya
+// combinados. combine() re-emite cuando cambia CUALQUIERA de
+// sus fuentes (partidos nuevos por un sync, o un chip tocado).
 // ============================================================
 
 @HiltViewModel
 class MainViewModel @Inject constructor(
     repository: MatchRepository,
     private val appSettings: AppSettings,
-    private val syncScheduler: SyncScheduler
+    private val syncScheduler: SyncScheduler,
+    private val widgetPreferences: WidgetPreferences
 ) : ViewModel() {
 
-    init {
-        // AUTO-REPARACIÓN al abrir la app:
-        // Si Samsung/Doze durmió la app y el ciclo de workers se
-        // perdió (widget atascado, datos viejos), abrir la app lo
-        // restablece: re-asegura el sync diario y dispara una
-        // sincronización que además redibuja todos los widgets.
-        // Costo: un request por apertura (que la caché del Worker
-        // absorbe casi siempre).
-        syncScheduler.ensureDailySync()
-        syncScheduler.syncNow()
+    // ---------- Pestaña Partidos ----------
+
+    private val allMatches: StateFlow<List<Match>> =
+        repository.getUpcomingMatches()
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // IDs de los equipos seguidos por algún widget
+    private val _followedTeamIds = MutableStateFlow<Set<Int>>(emptySet())
+    val followedTeamIds: StateFlow<Set<Int>> = _followedTeamIds.asStateFlow()
+
+    // Filtro por competición (null = todas)
+    private val _leagueFilter = MutableStateFlow<String?>(null)
+    val leagueFilter: StateFlow<String?> = _leagueFilter.asStateFlow()
+
+    fun setLeagueFilter(league: String?) {
+        _leagueFilter.value = league
     }
 
-    val upcomingMatches: StateFlow<List<Match>> =
-        repository.getUpcomingMatches()
-            .stateIn(
-                scope = viewModelScope,
-                started = SharingStarted.WhileSubscribed(5000),
-                initialValue = emptyList()
-            )
+    // Próximos partidos SOLO de los equipos seguidos (sección
+    // "Mis equipos"). No le aplica el filtro de competición:
+    // si sigues a Boca quieres ver su próximo partido sea del
+    // torneo que sea.
+    val misEquipos: StateFlow<List<Match>> =
+        combine(allMatches, _followedTeamIds) { matches, followed ->
+            matches.filter { it.homeTeamId in followed || it.awayTeamId in followed }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // ---------- Ajustes de notificaciones ----------
+    // Fixture completo, con el filtro de competición aplicado
+    val fixture: StateFlow<List<Match>> =
+        combine(allMatches, _leagueFilter) { matches, filter ->
+            if (filter == null) matches
+            else matches.filter { it.leagueName == filter }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    private fun loadFollowedTeams() {
+        viewModelScope.launch {
+            _followedTeamIds.value =
+                widgetPreferences.getAllFollowedTeamIds().toSet()
+        }
+    }
+
+    // ------------------------------------------------------------
+    // IMPORTANTE: este init va AL FINAL de la clase a propósito.
+    //
+    // Kotlin ejecuta propiedades e init en orden de declaración.
+    // En la versión anterior el init estaba ARRIBA y lanzaba
+    // loadFollowedTeams() ANTES de que _followedTeamIds existiera
+    // → NullPointerException al abrir la app. Regla: un init que
+    // dispara trabajo solo puede ir después del estado que toca.
+    // ------------------------------------------------------------
+    init {
+        // AUTO-REPARACIÓN al abrir la app: re-asegura el ciclo de
+        // workers y sincroniza (redibuja widgets atascados)
+        syncScheduler.ensureDailySync()
+        syncScheduler.syncNow()
+        loadFollowedTeams()
+    }
+
+    // ---------- Pestaña Ajustes ----------
 
     val notifyBeforeStart: StateFlow<Boolean> = settingFlow(appSettings.notifyBeforeStart)
     val notifyKickoff: StateFlow<Boolean> = settingFlow(appSettings.notifyKickoff)
     val notifyFinished: StateFlow<Boolean> = settingFlow(appSettings.notifyFinished)
 
-    // Al cambiar el aviso previo, reprogramamos el ciclo de sync:
-    // así el aviso del próximo partido se agenda (o cancela) al
-    // instante, sin esperar al siguiente sync
+    // Al cambiar el aviso previo, reprogramamos el ciclo de sync
+    // para que el aviso del próximo partido se agende (o cancele)
+    // al instante
     fun setNotifyBeforeStart(enabled: Boolean) {
         viewModelScope.launch {
             appSettings.setSetting(AppSettings.NOTIFY_BEFORE_START, enabled)
