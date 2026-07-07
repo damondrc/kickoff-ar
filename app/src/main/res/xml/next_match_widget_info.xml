@@ -23,4 +23,4 @@
     android:widgetCategory="home_screen"
     android:configure="com.futbolarg.futbolargentinowidgets.widget.config.WidgetConfigActivity"
     android:previewLayout="@layout/widget_preview"
-    android:initialLayout="@layout/glance_default_loading_layout" />
+    android:initialLayout="@layout/widget_initial" />

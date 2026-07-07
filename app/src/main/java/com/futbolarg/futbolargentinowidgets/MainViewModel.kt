@@ -30,6 +30,18 @@ class MainViewModel @Inject constructor(
     private val syncScheduler: SyncScheduler
 ) : ViewModel() {
 
+    init {
+        // AUTO-REPARACIÓN al abrir la app:
+        // Si Samsung/Doze durmió la app y el ciclo de workers se
+        // perdió (widget atascado, datos viejos), abrir la app lo
+        // restablece: re-asegura el sync diario y dispara una
+        // sincronización que además redibuja todos los widgets.
+        // Costo: un request por apertura (que la caché del Worker
+        // absorbe casi siempre).
+        syncScheduler.ensureDailySync()
+        syncScheduler.syncNow()
+    }
+
     val upcomingMatches: StateFlow<List<Match>> =
         repository.getUpcomingMatches()
             .stateIn(

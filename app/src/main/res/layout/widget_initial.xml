@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ============================================================
+     widget_initial.xml
+     ============================================================
+     Layout INICIAL del widget: lo que Android muestra mientras
+     Glance compone el contenido real (o si el proceso de la app
+     no puede arrancar todavía).
+
+     Antes usábamos el spinner genérico de Glance y el widget se
+     veía "en blanco/cargando" cuando Samsung dormía la app.
+     Con esto, en el peor caso se ve la marca y un texto claro,
+     nunca un hueco vacío.
+     ============================================================ -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_preview_bg"
+    android:gravity="center"
+    android:orientation="vertical"
+    android:padding="12dp">
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <ImageView
+            android:layout_width="22dp"
+            android:layout_height="22dp"
+            android:contentDescription="@null"
+            android:src="@drawable/ic_preview_ball" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:text="Kickoff AR"
+            android:textColor="#FFFFFF"
+            android:textSize="15sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:text="Cargando datos… toca para abrir"
+        android:textColor="#B0BEC5"
+        android:textSize="12sp" />
+</LinearLayout>
