@@ -84,6 +84,20 @@ interface MatchDao {
     )
     suspend fun getNextKickoff(teamId: Int, now: Long): Long?
 
+    // Próximos N partidos programados de un equipo (el widget
+    // expandido muestra los siguientes además del principal)
+    @Query(
+        """
+        SELECT * FROM matches
+        WHERE (homeTeamId = :teamId OR awayTeamId = :teamId)
+          AND status = 'SCHEDULED'
+          AND kickoffMillis > :now
+        ORDER BY kickoffMillis ASC
+        LIMIT :limit
+        """
+    )
+    suspend fun getNextScheduledMatches(teamId: Int, now: Long, limit: Int): List<MatchEntity>
+
     // Kickoff del partido EN VIVO más antiguo de estos equipos
     // (para calcular cuánto lleva jugándose y adaptar el polling)
     @Query(

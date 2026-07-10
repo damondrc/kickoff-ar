@@ -1,6 +1,7 @@
 package com.futbolarg.futbolargentinowidgets.widget
 
 import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 
 // ============================================================
@@ -42,4 +43,15 @@ object WidgetStateKeys {
     // Rutas locales de los escudos ya descargados ("" si no hay)
     val HOME_LOGO_PATH = stringPreferencesKey("home_logo_path")
     val AWAY_LOGO_PATH = stringPreferencesKey("away_logo_path")
+
+    // Fondo del widget en ARGB. Si el usuario activó "color del
+    // equipo" en Ajustes, es el color oficial del club oscurecido;
+    // si no, el gris oscuro por defecto.
+    val BG_COLOR_ARGB = intPreferencesKey("bg_color_argb")
+
+    // Partidos SIGUIENTES al principal, ya formateados
+    // ("vs CAT · dom 26 jul · 16:00"). Solo los muestra el
+    // widget cuando el usuario lo agranda (tamaño expandido).
+    val UPCOMING_1 = stringPreferencesKey("upcoming_1")
+    val UPCOMING_2 = stringPreferencesKey("upcoming_2")
 }

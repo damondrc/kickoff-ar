@@ -10,7 +10,9 @@ import androidx.datastore.preferences.preferencesDataStore
 import com.futbolarg.futbolargentinowidgets.domain.model.Team
 import com.futbolarg.futbolargentinowidgets.util.Constants
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -46,6 +48,7 @@ class WidgetPreferences @Inject constructor(
     private fun teamNameKey(widgetId: Int) = stringPreferencesKey("team_name_$widgetId")
     private fun teamAbbrKey(widgetId: Int) = stringPreferencesKey("team_abbr_$widgetId")
     private fun teamLogoKey(widgetId: Int) = stringPreferencesKey("team_logo_$widgetId")
+    private fun teamColorKey(widgetId: Int) = stringPreferencesKey("team_color_$widgetId")
 
     // Guardar el equipo elegido para una instancia de widget
     suspend fun saveTeamForWidget(widgetId: Int, team: Team) {
@@ -54,6 +57,7 @@ class WidgetPreferences @Inject constructor(
             prefs[teamNameKey(widgetId)] = team.name
             prefs[teamAbbrKey(widgetId)] = team.abbreviation
             prefs[teamLogoKey(widgetId)] = team.logoUrl
+            prefs[teamColorKey(widgetId)] = team.colorHex
         }
     }
 
@@ -65,9 +69,33 @@ class WidgetPreferences @Inject constructor(
             id = id,
             name = prefs[teamNameKey(widgetId)] ?: "",
             abbreviation = prefs[teamAbbrKey(widgetId)] ?: "",
-            logoUrl = prefs[teamLogoKey(widgetId)] ?: ""
+            logoUrl = prefs[teamLogoKey(widgetId)] ?: "",
+            colorHex = prefs[teamColorKey(widgetId)] ?: ""
         )
     }
+
+    // Equipos seguidos COMPLETOS (nombre, escudo, color) y
+    // reactivos: la sección "Mis equipos" dibuja su encabezado
+    // por equipo con estos datos, sin tocar la red.
+    val followedTeamsFlow: Flow<List<Team>> =
+        context.dataStore.data.map { prefs ->
+            prefs.asMap()
+                .filterKeys { it.name.startsWith("team_id_") }
+                .mapNotNull { (key, value) ->
+                    val widgetId = key.name.removePrefix("team_id_").toIntOrNull()
+                        ?: return@mapNotNull null
+                    val id = value as? Int ?: return@mapNotNull null
+                    Team(
+                        id = id,
+                        name = prefs[teamNameKey(widgetId)] ?: "",
+                        abbreviation = prefs[teamAbbrKey(widgetId)] ?: "",
+                        logoUrl = prefs[teamLogoKey(widgetId)] ?: "",
+                        colorHex = prefs[teamColorKey(widgetId)] ?: ""
+                    )
+                }
+                .distinctBy { it.id }
+                .sortedBy { it.name }
+        }
 
     // IDs de todos los equipos seguidos por algún widget
     // (lo usa el programador de sync para saber qué partidos importan)
@@ -80,6 +108,21 @@ class WidgetPreferences @Inject constructor(
             .distinct()
     }
 
+    // Versión REACTIVA de lo anterior: emite el set de equipos
+    // seguidos cada vez que cambia (agregar/quitar un widget).
+    // La usa la pantalla principal para que "Mis equipos" se
+    // actualice al instante, sin depender de una lectura única
+    // al crear el ViewModel (bug de la v1: solo aparecía el
+    // primer equipo si agregabas widgets con la app ya abierta).
+    val followedTeamIdsFlow: Flow<Set<Int>> =
+        context.dataStore.data.map { prefs ->
+            prefs.asMap()
+                .filterKeys { it.name.startsWith("team_id_") }
+                .values
+                .filterIsInstance<Int>()
+                .toSet()
+        }
+
     // Limpiar las claves de una instancia eliminada
     suspend fun deleteWidget(widgetId: Int) {
         context.dataStore.edit { prefs ->
@@ -87,6 +130,7 @@ class WidgetPreferences @Inject constructor(
             prefs.remove(teamNameKey(widgetId))
             prefs.remove(teamAbbrKey(widgetId))
             prefs.remove(teamLogoKey(widgetId))
+            prefs.remove(teamColorKey(widgetId))
         }
     }
 }

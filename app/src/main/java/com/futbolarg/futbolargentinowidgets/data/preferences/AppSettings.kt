@@ -5,6 +5,8 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.futbolarg.futbolargentinowidgets.util.Constants
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -42,6 +44,17 @@ class AppSettings @Inject constructor(
         val NOTIFY_KICKOFF = booleanPreferencesKey("notify_kickoff")
         // Avisar cuando termina (con el resultado final)
         val NOTIFY_FINISHED = booleanPreferencesKey("notify_finished")
+
+        // ¿El widget usa el color oficial del equipo como fondo?
+        val USE_TEAM_COLOR_WIDGET = booleanPreferencesKey("use_team_color_widget")
+
+        // Color (hex sin "#") del ÚLTIMO equipo elegido: tiñe el
+        // tema de la app
+        val LAST_TEAM_COLOR = stringPreferencesKey("last_team_color")
+
+        // Equipos ocultados de la sección "Mis equipos" (ids como
+        // String porque DataStore no tiene Set<Int>)
+        val HIDDEN_TEAM_IDS = stringSetPreferencesKey("hidden_team_ids")
     }
 
     // ---------- Flows reactivos (para la UI) ----------
@@ -65,6 +78,41 @@ class AppSettings @Inject constructor(
 
     suspend fun isNotifyFinishedEnabled(): Boolean =
         context.settingsDataStore.data.first()[NOTIFY_FINISHED] ?: false
+
+    // ---------- Personalización ----------
+
+    val useTeamColorWidget: Flow<Boolean> =
+        context.settingsDataStore.data.map { it[USE_TEAM_COLOR_WIDGET] ?: false }
+
+    suspend fun isUseTeamColorWidgetEnabled(): Boolean =
+        context.settingsDataStore.data.first()[USE_TEAM_COLOR_WIDGET] ?: false
+
+    val lastTeamColor: Flow<String> =
+        context.settingsDataStore.data.map { it[LAST_TEAM_COLOR] ?: "" }
+
+    suspend fun setLastTeamColor(colorHex: String) {
+        context.settingsDataStore.edit { it[LAST_TEAM_COLOR] = colorHex }
+    }
+
+    // ---------- Equipos ocultos en "Mis equipos" ----------
+
+    val hiddenTeamIds: Flow<Set<Int>> =
+        context.settingsDataStore.data.map { prefs ->
+            (prefs[HIDDEN_TEAM_IDS] ?: emptySet())
+                .mapNotNull { it.toIntOrNull() }
+                .toSet()
+        }
+
+    suspend fun hideTeam(teamId: Int) {
+        context.settingsDataStore.edit { prefs ->
+            prefs[HIDDEN_TEAM_IDS] =
+                (prefs[HIDDEN_TEAM_IDS] ?: emptySet()) + teamId.toString()
+        }
+    }
+
+    suspend fun restoreHiddenTeams() {
+        context.settingsDataStore.edit { it.remove(HIDDEN_TEAM_IDS) }
+    }
 
     // ---------- Escritura ----------
 

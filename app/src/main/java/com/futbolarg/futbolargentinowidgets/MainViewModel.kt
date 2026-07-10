@@ -6,6 +6,8 @@ import com.futbolarg.futbolargentinowidgets.data.preferences.AppSettings
 import com.futbolarg.futbolargentinowidgets.data.preferences.WidgetPreferences
 import com.futbolarg.futbolargentinowidgets.data.repository.MatchRepository
 import com.futbolarg.futbolargentinowidgets.domain.model.Match
+import com.futbolarg.futbolargentinowidgets.domain.model.Team
+import com.futbolarg.futbolargentinowidgets.widget.WidgetUpdater
 import com.futbolarg.futbolargentinowidgets.work.SyncScheduler
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.Flow
@@ -21,28 +23,33 @@ import javax.inject.Inject
 // ============================================================
 // MainViewModel.kt
 // ============================================================
-// Estado de la pantalla principal (dos pestañas):
+// Estado de la pantalla principal (v1.1):
 //
 // PARTIDOS:
-//   - misEquipos: próximos partidos de los equipos que siguen
-//     tus widgets (la sección destacada de arriba)
-//   - fixture: todos los partidos, filtrables por competición
-//   - leagueFilter: el chip seleccionado (null = todas)
+//   - visibleTeams: equipos seguidos por widgets, menos los que
+//     el usuario ocultó (mantener presionado → quitar)
+//   - misEquipos: partidos de esos equipos (para las tarjetas
+//     desplegables)
+//   - fixture + leagueFilter: el fixture filtrable
+//   - fixtureView: LISTA o CALENDARIO
 //
-// AJUSTES:
-//   - los tres switches de notificaciones
+// PERSONALIZACIÓN:
+//   - lastTeamColor: tiñe el tema de la app
+//   - useTeamColorWidget: fondo del widget con color del club
 //
-// Patrón: la UI no filtra nada; observa StateFlows ya
-// combinados. combine() re-emite cuando cambia CUALQUIERA de
-// sus fuentes (partidos nuevos por un sync, o un chip tocado).
+// AJUSTES: los tres switches de notificaciones.
 // ============================================================
+
+// Cómo se visualiza el fixture
+enum class FixtureView { LIST, CALENDAR }
 
 @HiltViewModel
 class MainViewModel @Inject constructor(
     repository: MatchRepository,
     private val appSettings: AppSettings,
     private val syncScheduler: SyncScheduler,
-    private val widgetPreferences: WidgetPreferences
+    private val widgetPreferences: WidgetPreferences,
+    private val widgetUpdater: WidgetUpdater
 ) : ViewModel() {
 
     // ---------- Pestaña Partidos ----------
@@ -51,9 +58,39 @@ class MainViewModel @Inject constructor(
         repository.getUpcomingMatches()
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // IDs de los equipos seguidos por algún widget
-    private val _followedTeamIds = MutableStateFlow<Set<Int>>(emptySet())
-    val followedTeamIds: StateFlow<Set<Int>> = _followedTeamIds.asStateFlow()
+    // Equipos seguidos (reactivo) menos los ocultados por el usuario
+    val visibleTeams: StateFlow<List<Team>> =
+        combine(
+            widgetPreferences.followedTeamsFlow,
+            appSettings.hiddenTeamIds
+        ) { teams, hidden ->
+            teams.filterNot { it.id in hidden }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // Cuántos equipos hay ocultos (para el botón "restaurar")
+    val hiddenTeamCount: StateFlow<Int> =
+        combine(
+            appSettings.hiddenTeamIds,
+            widgetPreferences.followedTeamsFlow
+        ) { hidden, teams ->
+            teams.count { it.id in hidden }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
+    // Partidos de los equipos seguidos (las tarjetas desplegables
+    // filtran por equipo sobre esta lista)
+    val misEquipos: StateFlow<List<Match>> =
+        combine(allMatches, widgetPreferences.followedTeamsFlow) { matches, teams ->
+            val ids = teams.map { it.id }.toSet()
+            matches.filter { it.homeTeamId in ids || it.awayTeamId in ids }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    fun hideTeam(teamId: Int) {
+        viewModelScope.launch { appSettings.hideTeam(teamId) }
+    }
+
+    fun restoreHiddenTeams() {
+        viewModelScope.launch { appSettings.restoreHiddenTeams() }
+    }
 
     // Filtro por competición (null = todas)
     private val _leagueFilter = MutableStateFlow<String?>(null)
@@ -63,14 +100,13 @@ class MainViewModel @Inject constructor(
         _leagueFilter.value = league
     }
 
-    // Próximos partidos SOLO de los equipos seguidos (sección
-    // "Mis equipos"). No le aplica el filtro de competición:
-    // si sigues a Boca quieres ver su próximo partido sea del
-    // torneo que sea.
-    val misEquipos: StateFlow<List<Match>> =
-        combine(allMatches, _followedTeamIds) { matches, followed ->
-            matches.filter { it.homeTeamId in followed || it.awayTeamId in followed }
-        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    // Vista del fixture: lista agrupada o calendario
+    private val _fixtureView = MutableStateFlow(FixtureView.LIST)
+    val fixtureView: StateFlow<FixtureView> = _fixtureView.asStateFlow()
+
+    fun setFixtureView(view: FixtureView) {
+        _fixtureView.value = view
+    }
 
     // Fixture completo, con el filtro de competición aplicado
     val fixture: StateFlow<List<Match>> =
@@ -79,39 +115,31 @@ class MainViewModel @Inject constructor(
             else matches.filter { it.leagueName == filter }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    private fun loadFollowedTeams() {
+    // ---------- Personalización ----------
+
+    // Color del último equipo elegido (hex sin "#"): acento del tema
+    val lastTeamColor: StateFlow<String> =
+        appSettings.lastTeamColor
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
+
+    val useTeamColorWidget: StateFlow<Boolean> =
+        settingFlow(appSettings.useTeamColorWidget)
+
+    // Al cambiar el ajuste, redibuja todos los widgets al instante
+    // (updateAllWidgets no usa red: lee Room y los escudos cacheados)
+    fun setUseTeamColorWidget(enabled: Boolean) {
         viewModelScope.launch {
-            _followedTeamIds.value =
-                widgetPreferences.getAllFollowedTeamIds().toSet()
+            appSettings.setSetting(AppSettings.USE_TEAM_COLOR_WIDGET, enabled)
+            widgetUpdater.updateAllWidgets()
         }
     }
 
-    // ------------------------------------------------------------
-    // IMPORTANTE: este init va AL FINAL de la clase a propósito.
-    //
-    // Kotlin ejecuta propiedades e init en orden de declaración.
-    // En la versión anterior el init estaba ARRIBA y lanzaba
-    // loadFollowedTeams() ANTES de que _followedTeamIds existiera
-    // → NullPointerException al abrir la app. Regla: un init que
-    // dispara trabajo solo puede ir después del estado que toca.
-    // ------------------------------------------------------------
-    init {
-        // AUTO-REPARACIÓN al abrir la app: re-asegura el ciclo de
-        // workers y sincroniza (redibuja widgets atascados)
-        syncScheduler.ensureDailySync()
-        syncScheduler.syncNow()
-        loadFollowedTeams()
-    }
-
-    // ---------- Pestaña Ajustes ----------
+    // ---------- Pestaña Ajustes (notificaciones) ----------
 
     val notifyBeforeStart: StateFlow<Boolean> = settingFlow(appSettings.notifyBeforeStart)
     val notifyKickoff: StateFlow<Boolean> = settingFlow(appSettings.notifyKickoff)
     val notifyFinished: StateFlow<Boolean> = settingFlow(appSettings.notifyFinished)
 
-    // Al cambiar el aviso previo, reprogramamos el ciclo de sync
-    // para que el aviso del próximo partido se agende (o cancele)
-    // al instante
     fun setNotifyBeforeStart(enabled: Boolean) {
         viewModelScope.launch {
             appSettings.setSetting(AppSettings.NOTIFY_BEFORE_START, enabled)
@@ -133,5 +161,15 @@ class MainViewModel @Inject constructor(
         enabled: Boolean
     ) {
         viewModelScope.launch { appSettings.setSetting(key, enabled) }
+    }
+
+    // ------------------------------------------------------------
+    // init AL FINAL de la clase (lección del NPE de la v1: nunca
+    // disparar trabajo antes de declarar el estado que toca)
+    // ------------------------------------------------------------
+    init {
+        // AUTO-REPARACIÓN al abrir la app
+        syncScheduler.ensureDailySync()
+        syncScheduler.syncNow()
     }
 }

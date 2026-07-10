@@ -33,10 +33,16 @@ android {
     }
 
     buildTypes {
-        // La API pública de ESPN no requiere clave: no hay secretos que inyectar.
         release {
-            isMinifyEnabled = true
-            isShrinkResources = true
+            // MINIFICACIÓN DESACTIVADA a propósito (v1.0):
+            // R8 recortaba código usado por reflexión y el APK de
+            // release crasheaba al abrir (el debug funcionaba).
+            // Para una app de este tamaño el ahorro no justifica
+            // el riesgo. Si se reactiva algún día, hay que probar
+            // el APK release en dispositivo ANTES de publicarlo
+            // (las reglas de proguard-rules.pro quedan listas).
+            isMinifyEnabled = false
+            isShrinkResources = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

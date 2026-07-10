@@ -49,5 +49,6 @@ data class ProxyTeamDto(
     @SerializedName("id") val id: Int?,
     @SerializedName("name") val name: String?,
     @SerializedName("abbr") val abbr: String?,
-    @SerializedName("logo") val logo: String?
+    @SerializedName("logo") val logo: String?,
+    @SerializedName("color") val color: String?
 )

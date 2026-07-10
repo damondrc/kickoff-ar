@@ -240,6 +240,9 @@ async function buildTeams() {
       name: t.displayName,
       abbr: t.abbreviation || "",
       logo: t.logos?.[0]?.href || "",
+      // Color oficial del club según ESPN (hex sin "#", ej "C60000").
+      // La app lo usa para personalizar el widget y el tema.
+      color: t.color || "",
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
 }

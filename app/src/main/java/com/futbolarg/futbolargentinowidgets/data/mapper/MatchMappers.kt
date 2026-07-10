@@ -138,7 +138,8 @@ fun EspnTeamListItemDto.toDomainModel(): Team? {
         id = id?.toIntOrNull() ?: return null,
         name = displayName ?: return null,
         abbreviation = abbreviation ?: "",
-        logoUrl = logoUrl()
+        logoUrl = logoUrl(),
+        colorHex = color ?: ""
     )
 }
 
@@ -179,6 +180,7 @@ fun ProxyTeamDto.toDomainModel(): Team? {
         id = id ?: return null,
         name = name ?: return null,
         abbreviation = abbr ?: "",
-        logoUrl = logo ?: ""
+        logoUrl = logo ?: "",
+        colorHex = color ?: ""
     )
 }

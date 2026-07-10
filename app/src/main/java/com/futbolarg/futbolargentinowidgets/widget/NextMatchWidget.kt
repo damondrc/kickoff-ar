@@ -8,14 +8,17 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.DpSize
 import androidx.datastore.preferences.core.Preferences
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
+import androidx.glance.LocalSize
 import androidx.glance.Image
 import androidx.glance.ImageProvider
 import androidx.glance.action.actionStartActivity
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
+import androidx.glance.appwidget.SizeMode
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.provideContent
 import androidx.glance.background
@@ -61,9 +64,21 @@ import com.futbolarg.futbolargentinowidgets.MainActivity
 
 class NextMatchWidget : GlanceAppWidget() {
 
+    companion object {
+        // Tamaños que el widget distingue. Glance recompone con
+        // el más cercano al tamaño real cuando el usuario lo
+        // redimensiona (SizeMode.Responsive).
+        val COMPACT = DpSize(180.dp, 60.dp)    // 3x1: solo el próximo partido
+        val EXPANDED = DpSize(180.dp, 130.dp)  // 3x2: + los 2 siguientes
+    }
+
     // Estado por instancia basado en Preferences (lo que escribe
     // WidgetUpdater con updateAppWidgetState)
     override val stateDefinition = PreferencesGlanceStateDefinition
+
+    override val sizeMode: SizeMode = SizeMode.Responsive(
+        setOf(COMPACT, EXPANDED)
+    )
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         // OJO: nada de cargar datos acá afuera — este bloque corre
@@ -79,7 +94,6 @@ class NextMatchWidget : GlanceAppWidget() {
 // UI del widget (Glance composables)
 // ============================================================
 
-private val BG_COLOR = ColorProvider(Color(0xE6101418))      // fondo oscuro
 private val TEXT_PRIMARY = ColorProvider(Color(0xFFFFFFFF))
 private val TEXT_SECONDARY = ColorProvider(Color(0xFFB0BEC5))
 private val LIVE_COLOR = ColorProvider(Color(0xFF4CAF50))    // verde "en vivo"
@@ -97,11 +111,21 @@ private fun WidgetContent() {
     val isLive = prefs[WidgetStateKeys.IS_LIVE] ?: false
     val homeLogoPath = prefs[WidgetStateKeys.HOME_LOGO_PATH] ?: ""
     val awayLogoPath = prefs[WidgetStateKeys.AWAY_LOGO_PATH] ?: ""
+    val upcoming1 = prefs[WidgetStateKeys.UPCOMING_1] ?: ""
+    val upcoming2 = prefs[WidgetStateKeys.UPCOMING_2] ?: ""
+    // Fondo: color del club (si el ajuste está activo) o el default
+    val bgColor = prefs[WidgetStateKeys.BG_COLOR_ARGB]?.let { Color(it) }
+        ?: Color(0xE6101418)
+
+    // ¿En qué tamaño nos está dibujando el launcher? Con
+    // SizeMode.Responsive, LocalSize devuelve uno de los tamaños
+    // declarados (COMPACT o EXPANDED), el más cercano al real.
+    val isExpanded = LocalSize.current.height >= NextMatchWidget.EXPANDED.height
 
     Column(
         modifier = GlanceModifier
             .fillMaxSize()
-            .background(BG_COLOR)
+            .background(ColorProvider(bgColor))
             .cornerRadius(16.dp)
             .padding(12.dp)
             .clickable(actionStartActivity<MainActivity>()),
@@ -135,15 +159,35 @@ private fun WidgetContent() {
                 )
             }
 
-            else -> MatchRow(
-                lineMain = lineMain,
-                lineStatus = lineStatus,
-                isLive = isLive,
-                homeLogoPath = homeLogoPath,
-                awayLogoPath = awayLogoPath
-            )
+            else -> {
+                MatchRow(
+                    lineMain = lineMain,
+                    lineStatus = lineStatus,
+                    isLive = isLive,
+                    homeLogoPath = homeLogoPath,
+                    awayLogoPath = awayLogoPath
+                )
+
+                // Tamaño expandido: los siguientes partidos debajo
+                if (isExpanded && upcoming1.isNotEmpty()) {
+                    Spacer(modifier = GlanceModifier.height(10.dp))
+                    UpcomingRow(upcoming1)
+                    if (upcoming2.isNotEmpty()) {
+                        Spacer(modifier = GlanceModifier.height(4.dp))
+                        UpcomingRow(upcoming2)
+                    }
+                }
+            }
         }
     }
+}
+
+@Composable
+private fun UpcomingRow(text: String) {
+    Text(
+        text = text,
+        style = TextStyle(color = TEXT_SECONDARY, fontSize = 12.sp)
+    )
 }
 
 @Composable

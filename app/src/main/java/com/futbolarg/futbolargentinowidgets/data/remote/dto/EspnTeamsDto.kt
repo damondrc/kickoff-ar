@@ -52,6 +52,10 @@ data class EspnTeamListItemDto(
     @SerializedName("abbreviation")
     val abbreviation: String?,
 
+    // Color oficial del club (hex sin "#", ej: "C60000")
+    @SerializedName("color")
+    val color: String?,
+
     // En este endpoint los escudos vienen como lista "logos"
     @SerializedName("logos")
     val logos: List<EspnLogoDto> = emptyList()

@@ -182,6 +182,14 @@ class MatchRepository @Inject constructor(
         return matchDao.countLiveMatches(teamIds) > 0
     }
 
+    // Próximos partidos programados de un equipo (para el widget
+    // expandido, que muestra los siguientes además del principal)
+    suspend fun getNextScheduledMatches(teamId: Int, limit: Int): List<Match> {
+        return matchDao
+            .getNextScheduledMatches(teamId, System.currentTimeMillis(), limit)
+            .toDomainModelList()
+    }
+
     // Kickoff del partido en vivo (null si no hay ninguno).
     // El scheduler lo usa para saber en qué fase del partido
     // estamos y elegir el intervalo de polling.

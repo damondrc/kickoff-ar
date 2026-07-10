@@ -3,6 +3,7 @@ package com.futbolarg.futbolargentinowidgets.data.remote.api
 import com.futbolarg.futbolargentinowidgets.data.remote.dto.ProxyFixturesResponse
 import com.futbolarg.futbolargentinowidgets.data.remote.dto.ProxyTeamDto
 import retrofit2.http.GET
+import retrofit2.http.Query
 
 // ============================================================
 // KickoffApiService.kt
@@ -24,7 +25,11 @@ interface KickoffApiService {
     @GET("fixtures")
     suspend fun getFixtures(): ProxyFixturesResponse
 
-    // Los 30 equipos de la Liga Profesional
+    // Los 30 equipos de la Liga Profesional.
+    // El parámetro "v" rompe la caché de borde vieja: la caché
+    // usa la URL completa como clave, así que al sumar campos a
+    // la respuesta (color) subimos la versión para no recibir
+    // copias cacheadas del formato anterior durante horas.
     @GET("teams")
-    suspend fun getTeams(): List<ProxyTeamDto>
+    suspend fun getTeams(@Query("v") version: Int = 2): List<ProxyTeamDto>
 }
