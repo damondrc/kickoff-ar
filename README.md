@@ -1,5 +1,7 @@
 # ⚽ Kickoff AR
 
+[![Build](https://github.com/damondrc/kickoff-ar/actions/workflows/build.yml/badge.svg)](https://github.com/damondrc/kickoff-ar/actions/workflows/build.yml)
+
 **[⬇ Descargar APK (v1.0.0)](https://github.com/damondrc/kickoff-ar/releases/latest)**
 
 Widget minimalista para Android que muestra el próximo partido de tu equipo del fútbol argentino: cuándo juega, si está jugando, y el resultado final — directo en tu pantalla de inicio, sin abrir ninguna app.
@@ -10,6 +12,19 @@ Widget minimalista para Android que muestra el próximo partido de tu equipo del
 │    dom 26 jul · 16:00   │ → │       ● Jugando         │ → │         Final           │
 └─────────────────────────┘   └─────────────────────────┘   └─────────────────────────┘
 ```
+
+## Capturas
+
+<p align="center">
+  <img width="200" alt="Widget en pantalla de inicio" src="https://github.com/user-attachments/assets/10e33f0f-7b86-416d-adee-864cb6b30e27" />
+  <img width="200" alt="Widget expandido" src="https://github.com/user-attachments/assets/9375ccec-ffb7-4b1f-b93f-a9aa897e2243" />
+  <img width="200" alt="Selección de equipo" src="https://github.com/user-attachments/assets/b9a6d413-c607-4943-a89b-4d362e16baeb" />
+</p>
+<p align="center">
+  <img width="200" alt="Pestaña Partidos" src="https://github.com/user-attachments/assets/769a8b22-65da-4a91-98ee-7d93af0e6880" />
+  <img width="200" alt="Calendario" src="https://github.com/user-attachments/assets/d931a6eb-934e-486a-af7a-14c054abb91b" />
+  <img width="200" alt="Ajustes" src="https://github.com/user-attachments/assets/baf6db22-0dbb-456c-a5d5-40da7a1e097e" />
+</p>
 
 ## La historia
 
