@@ -12,6 +12,14 @@
          desde Android 13 (se pide al activar un switch de ajustes) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- Alarmas exactas: despertar la app a la hora del kickoff.
+         En Android 14+ viene denegado por defecto; la app funciona
+         igual con alarmas inexactas, pero Ajustes ofrece activarlo -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+
+    <!-- Reprogramar las alarmas tras reiniciar el teléfono -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
     <application
         android:name=".FutbolWidgetsApp"
         android:allowBackup="true"
@@ -63,6 +71,25 @@
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/next_match_widget_info" />
+        </receiver>
+
+        <!-- ====================================================
+             Receptores de alarmas: SyncAlarmReceiver recibe las
+             alarmas propias (no exportado: solo nuestros
+             PendingIntent); BootReceiver restablece el ciclo
+             tras un reinicio (BOOT_COMPLETED es un broadcast
+             protegido: solo el sistema puede enviarlo).
+             ==================================================== -->
+        <receiver
+            android:name=".work.SyncAlarmReceiver"
+            android:exported="false" />
+
+        <receiver
+            android:name=".work.BootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
         </receiver>
 
         <!-- ====================================================

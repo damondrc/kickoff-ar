@@ -1,6 +1,10 @@
 package com.futbolarg.futbolargentinowidgets.work
 
+import android.app.AlarmManager
+import android.app.PendingIntent
 import android.content.Context
+import android.content.Intent
+import android.os.Build
 import android.util.Log
 import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
@@ -19,26 +23,35 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 // ============================================================
-// SyncScheduler.kt
+// SyncScheduler.kt (v2 — con AlarmManager)
 // ============================================================
-// El "cerebro" del modelo de actualización de la app.
+// El "cerebro" del modelo de actualización.
 //
-// FILOSOFÍA (requisito del proyecto): el widget NO actualiza
-// a cada rato. Solo sincroniza:
+// HISTORIA DEL REDISEÑO: la v1 programaba la sincronización del
+// kickoff como trabajo diferido de WorkManager (setInitialDelay).
+// Falla en el mundo real: una app de widget no se abre en días,
+// Android la degrada de "standby bucket" y difiere sus trabajos
+// horas o indefinidamente → el widget quedaba muerto hasta abrir
+// la app. Los trabajos diferidos son para "algún momento
+// conveniente"; un kickoff es una HORA EXACTA.
 //
-//   ANTES   → nada. El widget ya sabe fecha y hora del partido.
-//   INICIO  → un sync justo después del kickoff (pasa a "Jugando")
-//   DURANTE → un sync cada 30 min (por si terminó)
-//   FINAL   → muestra el resultado y programa el PRÓXIMO sync
-//             recién para el siguiente partido
+// Ahora: AlarmManager (setExactAndAllowWhileIdle atraviesa Doze)
+// despierta la app a la hora del partido → SyncAlarmReceiver →
+// WorkManager ejecuta el sync con su restricción de red.
 //
-// Además hay un sync diario de seguridad (flex, barato) que
-// capta cambios de fixture (reprogramaciones, nuevos torneos).
+//   ANTES   → alarma al kickoff (y otra 30 min antes si el
+//             usuario quiere el aviso previo)
+//   DURANTE → alarma cada 30 min (cada 10 en el tramo final)
+//   FINAL   → se muestra el resultado y la alarma siguiente
+//             queda para el próximo partido
+//   SIEMPRE → sync diario de respaldo (WorkManager periódico,
+//             que sí sobrevive standby y reinicios) + BootReceiver
+//             que restablece alarmas tras reiniciar el teléfono.
 //
-// Todo con WorkManager: sobrevive reinicios del teléfono y
-// respeta la batería. No usamos AlarmManager exacto porque
-// un margen de 1-2 minutos es irrelevante para este caso y
-// así evitamos el permiso especial SCHEDULE_EXACT_ALARM.
+// Nota Doze: en reposo profundo, las alarmas "allow while idle"
+// se limitan a ~1 cada 15 min por app; el polling de 10 min del
+// tramo final puede estirarse a 15 con pantalla apagada. Precio
+// aceptable del bajo consumo.
 // ============================================================
 
 @Singleton
@@ -51,26 +64,27 @@ class SyncScheduler @Inject constructor(
 
     companion object {
         private const val TAG = "SyncScheduler"
-        // Margen tras el kickoff para que ESPN ya marque "in"
         private val KICKOFF_MARGIN_MILLIS = TimeUnit.MINUTES.toMillis(2)
+        private const val REQUEST_SYNC = 100
+        private const val REQUEST_PRE_MATCH = 101
     }
 
     private val workManager = WorkManager.getInstance(context)
+    private val alarmManager = context.getSystemService(AlarmManager::class.java)
 
     private val networkConstraint = Constraints.Builder()
         .setRequiredNetworkType(NetworkType.CONNECTED)
         .build()
 
     // ========================================================
-    // Sync inmediato (al agregar/configurar un widget)
+    // Sync INMEDIATO (lo disparan: la alarma del kickoff, el
+    // BootReceiver, la config de un widget y abrir la app)
     // ========================================================
     fun syncNow() {
         val request = OneTimeWorkRequestBuilder<MatchSyncWorker>()
             .setConstraints(networkConstraint)
             .build()
 
-        // REPLACE: si había un sync programado para más adelante,
-        // este lo pisa; al terminar, el worker reprograma el próximo.
         workManager.enqueueUniqueWork(
             Constants.SYNC_WORK_NAME,
             ExistingWorkPolicy.REPLACE,
@@ -78,107 +92,79 @@ class SyncScheduler @Inject constructor(
         )
     }
 
+    // Encolar el aviso previo YA (lo dispara su alarma)
+    fun runPreMatchNow() {
+        workManager.enqueueUniqueWork(
+            Constants.PRE_MATCH_WORK_NAME,
+            ExistingWorkPolicy.REPLACE,
+            OneTimeWorkRequestBuilder<PreMatchNotificationWorker>().build()
+        )
+    }
+
     // ========================================================
-    // Programar el PRÓXIMO sync según el estado de los partidos
-    // (la llama el worker al final de cada sincronización)
+    // Programar la PRÓXIMA alarma según el estado de los
+    // partidos (la llama el worker al final de cada sync)
     // ========================================================
     suspend fun scheduleNext() {
         val teamIds = widgetPreferences.getAllFollowedTeamIds()
         if (teamIds.isEmpty()) {
-            Log.d(TAG, "Sin widgets configurados: no se programa sync")
-            workManager.cancelUniqueWork(Constants.SYNC_WORK_NAME)
+            Log.d(TAG, "Sin widgets: se cancelan las alarmas")
+            alarmManager.cancel(syncPendingIntent())
+            alarmManager.cancel(preMatchPendingIntent())
             return
         }
 
+        val now = System.currentTimeMillis()
         val liveKickoff = repository.getLiveKickoff(teamIds)
 
-        val delayMillis: Long = if (liveKickoff != null) {
-            // Hay partido en juego → polling ADAPTATIVO:
-            // - fase normal: cada 30 min (bajo consumo)
-            // - desde el minuto ~75: cada 10 min, para detectar el
-            //   final lo más cerca posible del pitazo real
-            val elapsedMinutes =
-                (System.currentTimeMillis() - liveKickoff) / 60000
-
+        val triggerAt: Long = if (liveKickoff != null) {
+            // Partido en juego → re-chequeo con cadencia adaptativa
+            val elapsedMinutes = (now - liveKickoff) / 60000
             val pollMinutes = if (elapsedMinutes >= Constants.LIVE_ENDGAME_AFTER_MINUTES) {
                 Constants.LIVE_ENDGAME_POLL_MINUTES
             } else {
                 Constants.LIVE_POLL_MINUTES
             }
-
-            Log.d(TAG, "Partido en vivo (min $elapsedMinutes): próximo poll en $pollMinutes min")
-            TimeUnit.MINUTES.toMillis(pollMinutes)
+            Log.d(TAG, "En vivo (min $elapsedMinutes): próximo chequeo en $pollMinutes min")
+            now + TimeUnit.MINUTES.toMillis(pollMinutes)
         } else {
-            // Buscar el kickoff más cercano entre los equipos seguidos
             val nextKickoff = teamIds
                 .mapNotNull { repository.getNextKickoff(it) }
                 .minOrNull()
 
             if (nextKickoff == null) {
-                // No hay próximos partidos conocidos (receso largo).
-                // El sync diario de seguridad se encarga.
-                Log.d(TAG, "Sin próximos partidos: queda solo el sync diario")
+                Log.d(TAG, "Sin próximos partidos: queda el sync diario")
                 return
             }
 
-            // Si el usuario quiere aviso previo, programarlo
-            // ~30 min antes de ese mismo kickoff
-            schedulePreMatchNotification(nextKickoff)
-
-            (nextKickoff + KICKOFF_MARGIN_MILLIS - System.currentTimeMillis())
-                .coerceAtLeast(0)
+            schedulePreMatchAlarm(nextKickoff)
+            nextKickoff + KICKOFF_MARGIN_MILLIS
         }
 
-        val request = OneTimeWorkRequestBuilder<MatchSyncWorker>()
-            .setConstraints(networkConstraint)
-            .setInitialDelay(delayMillis, TimeUnit.MILLISECONDS)
-            .build()
-
-        // APPEND_OR_REPLACE (y no REPLACE): esta función la llama
-        // el propio MatchSyncWorker al terminar. REPLACE cancelaría
-        // al worker EN EJECUCIÓN (mismo nombre único); APPEND lo
-        // encadena después sin matar al actual.
-        workManager.enqueueUniqueWork(
-            Constants.SYNC_WORK_NAME,
-            ExistingWorkPolicy.APPEND_OR_REPLACE,
-            request
-        )
-
-        Log.d(TAG, "Próximo sync en ${delayMillis / 60000} min")
+        setAlarm(triggerAt, syncPendingIntent())
+        Log.d(TAG, "Alarma de sync en ${(triggerAt - now) / 60000} min")
     }
 
-    // ========================================================
-    // Aviso "ya casi arranca": worker liviano sin red, programado
-    // PRE_MATCH_NOTIFY_MINUTES antes del kickoff. El worker
-    // re-verifica el ajuste y el fixture al dispararse, así que
-    // programarlo de más no genera avisos falsos.
-    // ========================================================
-    private suspend fun schedulePreMatchNotification(kickoffMillis: Long) {
+    // Alarma del aviso "ya casi arranca" (solo si está activado)
+    private suspend fun schedulePreMatchAlarm(kickoffMillis: Long) {
         if (!appSettings.isNotifyBeforeStartEnabled()) {
-            workManager.cancelUniqueWork(Constants.PRE_MATCH_WORK_NAME)
+            alarmManager.cancel(preMatchPendingIntent())
             return
         }
 
         val fireAt = kickoffMillis -
             TimeUnit.MINUTES.toMillis(Constants.PRE_MATCH_NOTIFY_MINUTES)
-        val delay = (fireAt - System.currentTimeMillis()).coerceAtLeast(0)
-
-        val request = OneTimeWorkRequestBuilder<PreMatchNotificationWorker>()
-            .setInitialDelay(delay, TimeUnit.MILLISECONDS)
-            .build()
-
-        workManager.enqueueUniqueWork(
-            Constants.PRE_MATCH_WORK_NAME,
-            ExistingWorkPolicy.REPLACE,
-            request
-        )
-
-        Log.d(TAG, "Aviso previo programado en ${delay / 60000} min")
+        if (fireAt > System.currentTimeMillis()) {
+            setAlarm(fireAt, preMatchPendingIntent())
+            Log.d(TAG, "Alarma de aviso previo programada")
+        }
     }
 
     // ========================================================
-    // Sync diario de seguridad (capta fixtures nuevos y cambios
-    // de horario; consume un request por día, nada más)
+    // Sync diario de respaldo. Se queda en WorkManager a
+    // propósito: es tolerante a retrasos y ÉL SÍ sobrevive
+    // standby buckets y reinicios — la red de seguridad si una
+    // alarma se pierde.
     // ========================================================
     fun ensureDailySync() {
         val request = PeriodicWorkRequestBuilder<MatchSyncWorker>(
@@ -187,11 +173,51 @@ class SyncScheduler @Inject constructor(
             .setConstraints(networkConstraint)
             .build()
 
-        // KEEP: si ya existe, no lo duplica ni lo reinicia
         workManager.enqueueUniquePeriodicWork(
             Constants.DAILY_SYNC_WORK_NAME,
             ExistingPeriodicWorkPolicy.KEEP,
             request
+        )
+    }
+
+    // ========================================================
+    // Utilidades de alarmas
+    // ========================================================
+
+    // Exacta si el usuario/sistema lo permite (Android 12+ lo
+    // restringe); si no, inexacta "while idle": puede derivar
+    // unos minutos, pero JAMÁS queda muerta como el trabajo
+    // diferido de la v1.
+    private fun setAlarm(triggerAt: Long, pi: PendingIntent) {
+        val canExact = Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
+            alarmManager.canScheduleExactAlarms()
+
+        if (canExact) {
+            alarmManager.setExactAndAllowWhileIdle(
+                AlarmManager.RTC_WAKEUP, triggerAt, pi
+            )
+        } else {
+            alarmManager.setAndAllowWhileIdle(
+                AlarmManager.RTC_WAKEUP, triggerAt, pi
+            )
+        }
+    }
+
+    private fun syncPendingIntent(): PendingIntent =
+        pendingIntent(SyncAlarmReceiver.ACTION_SYNC, REQUEST_SYNC)
+
+    private fun preMatchPendingIntent(): PendingIntent =
+        pendingIntent(SyncAlarmReceiver.ACTION_PRE_MATCH, REQUEST_PRE_MATCH)
+
+    // Mismo requestCode + misma action = reprogramar PISA la
+    // alarma anterior (nunca se acumulan duplicadas)
+    private fun pendingIntent(action: String, requestCode: Int): PendingIntent {
+        val intent = Intent(context, SyncAlarmReceiver::class.java).setAction(action)
+        return PendingIntent.getBroadcast(
+            context,
+            requestCode,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
     }
 }
