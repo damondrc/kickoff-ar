@@ -2,7 +2,6 @@ package com.futbolarg.futbolargentinowidgets.widget.config
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.futbolarg.futbolargentinowidgets.data.preferences.AppSettings
 import com.futbolarg.futbolargentinowidgets.data.preferences.WidgetPreferences
 import com.futbolarg.futbolargentinowidgets.data.repository.MatchRepository
 import com.futbolarg.futbolargentinowidgets.domain.model.Team
@@ -29,8 +28,7 @@ class WidgetConfigViewModel @Inject constructor(
     private val repository: MatchRepository,
     private val widgetPreferences: WidgetPreferences,
     private val syncScheduler: SyncScheduler,
-    private val widgetUpdater: WidgetUpdater,
-    private val appSettings: AppSettings
+    private val widgetUpdater: WidgetUpdater
 ) : ViewModel() {
 
     // Estados posibles de la pantalla
@@ -69,8 +67,6 @@ class WidgetConfigViewModel @Inject constructor(
     fun selectTeam(widgetId: Int, team: Team, onSaved: () -> Unit) {
         viewModelScope.launch {
             widgetPreferences.saveTeamForWidget(widgetId, team)
-            // El último equipo elegido tiñe el tema de la app
-            appSettings.setLastTeamColor(team.colorHex)
             widgetUpdater.updateWidget(widgetId)
             syncScheduler.ensureDailySync()
             syncScheduler.syncNow()

@@ -103,9 +103,8 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            val teamColorHex by viewModel.lastTeamColor.collectAsStateWithLifecycle()
             FútbolArgentinoWidgetsTheme {
-                TeamAccentTheme(teamColorHex) {
+                KickoffTheme {
                     KickoffApp(viewModel)
                 }
             }
@@ -114,33 +113,23 @@ class MainActivity : ComponentActivity() {
 }
 
 // ============================================================
-// Tema con acento del equipo
+// Tema de Kickoff AR: paleta ÚNICA y uniforme.
 // ============================================================
-// Copia el esquema de color vigente reemplazando el primario por
-// el color oficial del último equipo elegido. Fallback: celeste
-// argentino. secondaryContainer (chips y NavigationBar) se
-// deriva del mismo color con transparencia sobre la superficie.
+// v1.1: se eliminó el tinte por color de equipo — los colores
+// oficiales de los clubes (amarillos, rojos brillantes) rompían
+// la legibilidad y la coherencia visual con demasiada
+// frecuencia. El acento fijo es el celeste de la marca.
 // ============================================================
 
 private val CELESTE = Color(0xFF74ACDF)
 
-private fun parseTeamColor(hex: String): Color? {
-    if (hex.isBlank()) return null
-    return try {
-        Color(0xFF000000 or hex.removePrefix("#").toLong(16))
-    } catch (e: Exception) {
-        null
-    }
-}
-
 @Composable
-private fun TeamAccentTheme(teamColorHex: String, content: @Composable () -> Unit) {
-    val accent = remember(teamColorHex) { parseTeamColor(teamColorHex) } ?: CELESTE
+private fun KickoffTheme(content: @Composable () -> Unit) {
     val base = MaterialTheme.colorScheme
-    val scheme = remember(accent, base) {
+    val scheme = remember(base) {
         base.copy(
-            primary = accent,
-            secondaryContainer = accent.copy(alpha = 0.22f).compositeOver(base.surface),
+            primary = CELESTE,
+            secondaryContainer = CELESTE.copy(alpha = 0.22f).compositeOver(base.surface),
             onSecondaryContainer = base.onSurface
         )
     }
@@ -235,13 +224,8 @@ private fun PartidosScreen(viewModel: MainViewModel, modifier: Modifier = Modifi
                 )
             }
         }
-        if (hiddenCount > 0) {
-            item {
-                TextButton(onClick = { viewModel.restoreHiddenTeams() }) {
-                    Text("Restaurar equipos ocultos ($hiddenCount)")
-                }
-            }
-        }
+        // (La restauración de equipos ocultos vive en Ajustes →
+        // Personalización, para no dejar un botón permanente acá)
 
         // -------- Fixture: filtros + selector de vista --------
         item {
@@ -478,6 +462,10 @@ private fun LeagueFilterChips(selected: String?, onSelect: (String?) -> Unit) {
     }
 }
 
+// Fila del fixture. v1.1: los DOS escudos van pegados al texto
+// del partido (grupo izquierdo compacto) y la hora a la derecha.
+// Antes el escudo visitante quedaba flotando junto a la hora,
+// lejos del "CABJ vs RIV", y rompía la coherencia visual.
 @Composable
 private fun FixtureMatchRow(match: Match) {
     Card(modifier = Modifier.fillMaxWidth()) {
@@ -487,20 +475,41 @@ private fun FixtureMatchRow(match: Match) {
                 .padding(horizontal = 16.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            // Grupo izquierdo: [escudo] CABJ vs RIV [escudo]
             AsyncImage(
                 model = match.homeTeamLogo,
                 contentDescription = null,
                 modifier = Modifier.size(24.dp)
             )
+            Text(
+                text = "${match.homeTeamAbbr} vs ${match.awayTeamAbbr}",
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.padding(horizontal = 8.dp)
+            )
+            AsyncImage(
+                model = match.awayTeamLogo,
+                contentDescription = null,
+                modifier = Modifier.size(24.dp)
+            )
+
+            // El weight empuja lo siguiente al borde derecho
             Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(horizontal = 12.dp)
+                modifier = Modifier.weight(1f),
+                horizontalAlignment = Alignment.End
             ) {
                 Text(
-                    text = "${match.homeTeamAbbr} vs ${match.awayTeamAbbr}",
+                    text = if (match.status.isLive) {
+                        "● Jugando"
+                    } else {
+                        DateFormatting.formatTime(match.kickoffMillis)
+                    },
                     style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Medium
+                    color = if (match.status.isLive) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurface
+                    }
                 )
                 Text(
                     text = match.leagueName,
@@ -508,25 +517,6 @@ private fun FixtureMatchRow(match: Match) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            AsyncImage(
-                model = match.awayTeamLogo,
-                contentDescription = null,
-                modifier = Modifier.size(24.dp)
-            )
-            Text(
-                text = if (match.status.isLive) {
-                    "● Jugando"
-                } else {
-                    DateFormatting.formatTime(match.kickoffMillis)
-                },
-                style = MaterialTheme.typography.bodyMedium,
-                color = if (match.status.isLive) {
-                    MaterialTheme.colorScheme.primary
-                } else {
-                    MaterialTheme.colorScheme.onSurface
-                },
-                modifier = Modifier.padding(start = 12.dp)
-            )
         }
     }
 }
@@ -686,7 +676,8 @@ private fun AjustesScreen(viewModel: MainViewModel, modifier: Modifier = Modifie
     val notifyBefore by viewModel.notifyBeforeStart.collectAsStateWithLifecycle()
     val notifyKickoff by viewModel.notifyKickoff.collectAsStateWithLifecycle()
     val notifyFinished by viewModel.notifyFinished.collectAsStateWithLifecycle()
-    val useTeamColor by viewModel.useTeamColorWidget.collectAsStateWithLifecycle()
+    val hiddenCount by viewModel.hiddenTeamCount.collectAsStateWithLifecycle()
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     var pendingToggle by remember { mutableStateOf<(() -> Unit)?>(null) }
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -710,6 +701,41 @@ private fun AjustesScreen(viewModel: MainViewModel, modifier: Modifier = Modifie
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
+        // -------- Alarmas exactas (solo si falta el permiso) --------
+        // Sin este permiso las actualizaciones del kickoff pueden
+        // derivar unos minutos. La app funciona igual, pero avisamos.
+        val alarmManager = context.getSystemService(android.app.AlarmManager::class.java)
+        val needsExactAlarm = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+            !alarmManager.canScheduleExactAlarms()
+        if (needsExactAlarm) {
+            item {
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(
+                            text = "Actualizaciones puntuales",
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                        Text(
+                            text = "Activa las alarmas exactas para que el widget " +
+                                "se actualice justo al comenzar cada partido. " +
+                                "Vuelve a esta pantalla después de activarlo.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
+                        TextButton(onClick = {
+                            context.startActivity(
+                                android.content.Intent(
+                                    android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM
+                                )
+                            )
+                        }) { Text("Activar alarmas exactas") }
+                    }
+                }
+            }
+        }
+
+        // -------- Personalización --------
         item {
             Text(
                 text = "Personalización",
@@ -719,12 +745,37 @@ private fun AjustesScreen(viewModel: MainViewModel, modifier: Modifier = Modifie
         }
         item {
             Card(modifier = Modifier.fillMaxWidth()) {
-                SettingRow(
-                    title = "Color del equipo en el widget",
-                    subtitle = "El fondo del widget usa el color oficial del club",
-                    checked = useTeamColor,
-                    onToggle = { viewModel.setUseTeamColorWidget(it) }
-                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(end = 16.dp)
+                    ) {
+                        Text(
+                            text = "Equipos ocultos",
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                        Text(
+                            text = if (hiddenCount > 0) {
+                                "$hiddenCount equipo(s) fuera de \"Mis equipos\""
+                            } else {
+                                "No has ocultado ningún equipo"
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    TextButton(
+                        onClick = { viewModel.restoreHiddenTeams() },
+                        enabled = hiddenCount > 0
+                    ) { Text("Restaurar") }
+                }
             }
         }
 

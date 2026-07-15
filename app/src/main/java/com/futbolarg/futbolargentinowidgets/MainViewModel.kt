@@ -7,7 +7,6 @@ import com.futbolarg.futbolargentinowidgets.data.preferences.WidgetPreferences
 import com.futbolarg.futbolargentinowidgets.data.repository.MatchRepository
 import com.futbolarg.futbolargentinowidgets.domain.model.Match
 import com.futbolarg.futbolargentinowidgets.domain.model.Team
-import com.futbolarg.futbolargentinowidgets.widget.WidgetUpdater
 import com.futbolarg.futbolargentinowidgets.work.SyncScheduler
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.Flow
@@ -33,11 +32,8 @@ import javax.inject.Inject
 //   - fixture + leagueFilter: el fixture filtrable
 //   - fixtureView: LISTA o CALENDARIO
 //
-// PERSONALIZACIÓN:
-//   - lastTeamColor: tiñe el tema de la app
-//   - useTeamColorWidget: fondo del widget con color del club
-//
-// AJUSTES: los tres switches de notificaciones.
+// AJUSTES: los tres switches de notificaciones y la
+// restauración de equipos ocultos (sección Personalización).
 // ============================================================
 
 // Cómo se visualiza el fixture
@@ -48,8 +44,7 @@ class MainViewModel @Inject constructor(
     repository: MatchRepository,
     private val appSettings: AppSettings,
     private val syncScheduler: SyncScheduler,
-    private val widgetPreferences: WidgetPreferences,
-    private val widgetUpdater: WidgetUpdater
+    private val widgetPreferences: WidgetPreferences
 ) : ViewModel() {
 
     // ---------- Pestaña Partidos ----------
@@ -114,25 +109,6 @@ class MainViewModel @Inject constructor(
             if (filter == null) matches
             else matches.filter { it.leagueName == filter }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
-    // ---------- Personalización ----------
-
-    // Color del último equipo elegido (hex sin "#"): acento del tema
-    val lastTeamColor: StateFlow<String> =
-        appSettings.lastTeamColor
-            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
-
-    val useTeamColorWidget: StateFlow<Boolean> =
-        settingFlow(appSettings.useTeamColorWidget)
-
-    // Al cambiar el ajuste, redibuja todos los widgets al instante
-    // (updateAllWidgets no usa red: lee Room y los escudos cacheados)
-    fun setUseTeamColorWidget(enabled: Boolean) {
-        viewModelScope.launch {
-            appSettings.setSetting(AppSettings.USE_TEAM_COLOR_WIDGET, enabled)
-            widgetUpdater.updateAllWidgets()
-        }
-    }
 
     // ---------- Pestaña Ajustes (notificaciones) ----------
 

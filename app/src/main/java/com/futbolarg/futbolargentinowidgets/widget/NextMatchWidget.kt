@@ -94,6 +94,9 @@ class NextMatchWidget : GlanceAppWidget() {
 // UI del widget (Glance composables)
 // ============================================================
 
+// Paleta ÚNICA y uniforme del widget (v1.1: se quitó el tinte
+// por color de club — rompía la legibilidad con varios equipos)
+private val BG_COLOR = ColorProvider(Color(0xE6101418))
 private val TEXT_PRIMARY = ColorProvider(Color(0xFFFFFFFF))
 private val TEXT_SECONDARY = ColorProvider(Color(0xFFB0BEC5))
 private val LIVE_COLOR = ColorProvider(Color(0xFF4CAF50))    // verde "en vivo"
@@ -113,9 +116,6 @@ private fun WidgetContent() {
     val awayLogoPath = prefs[WidgetStateKeys.AWAY_LOGO_PATH] ?: ""
     val upcoming1 = prefs[WidgetStateKeys.UPCOMING_1] ?: ""
     val upcoming2 = prefs[WidgetStateKeys.UPCOMING_2] ?: ""
-    // Fondo: color del club (si el ajuste está activo) o el default
-    val bgColor = prefs[WidgetStateKeys.BG_COLOR_ARGB]?.let { Color(it) }
-        ?: Color(0xE6101418)
 
     // ¿En qué tamaño nos está dibujando el launcher? Con
     // SizeMode.Responsive, LocalSize devuelve uno de los tamaños
@@ -125,7 +125,7 @@ private fun WidgetContent() {
     Column(
         modifier = GlanceModifier
             .fillMaxSize()
-            .background(ColorProvider(bgColor))
+            .background(BG_COLOR)
             .cornerRadius(16.dp)
             .padding(12.dp)
             .clickable(actionStartActivity<MainActivity>()),

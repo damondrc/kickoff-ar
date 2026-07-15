@@ -5,7 +5,6 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
-import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.futbolarg.futbolargentinowidgets.util.Constants
@@ -45,15 +44,13 @@ class AppSettings @Inject constructor(
         // Avisar cuando termina (con el resultado final)
         val NOTIFY_FINISHED = booleanPreferencesKey("notify_finished")
 
-        // ¿El widget usa el color oficial del equipo como fondo?
-        val USE_TEAM_COLOR_WIDGET = booleanPreferencesKey("use_team_color_widget")
-
-        // Color (hex sin "#") del ÚLTIMO equipo elegido: tiñe el
-        // tema de la app
-        val LAST_TEAM_COLOR = stringPreferencesKey("last_team_color")
-
         // Equipos ocultados de la sección "Mis equipos" (ids como
         // String porque DataStore no tiene Set<Int>)
+        //
+        // Nota: en la v1.1 se eliminó el tinte por color de equipo
+        // (widget y tema): los colores oficiales de los clubes
+        // rompían la legibilidad con demasiada frecuencia. La
+        // paleta ahora es uniforme.
         val HIDDEN_TEAM_IDS = stringSetPreferencesKey("hidden_team_ids")
     }
 
@@ -78,21 +75,6 @@ class AppSettings @Inject constructor(
 
     suspend fun isNotifyFinishedEnabled(): Boolean =
         context.settingsDataStore.data.first()[NOTIFY_FINISHED] ?: false
-
-    // ---------- Personalización ----------
-
-    val useTeamColorWidget: Flow<Boolean> =
-        context.settingsDataStore.data.map { it[USE_TEAM_COLOR_WIDGET] ?: false }
-
-    suspend fun isUseTeamColorWidgetEnabled(): Boolean =
-        context.settingsDataStore.data.first()[USE_TEAM_COLOR_WIDGET] ?: false
-
-    val lastTeamColor: Flow<String> =
-        context.settingsDataStore.data.map { it[LAST_TEAM_COLOR] ?: "" }
-
-    suspend fun setLastTeamColor(colorHex: String) {
-        context.settingsDataStore.edit { it[LAST_TEAM_COLOR] = colorHex }
-    }
 
     // ---------- Equipos ocultos en "Mis equipos" ----------
 

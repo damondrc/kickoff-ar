@@ -9,7 +9,6 @@ import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.glance.appwidget.state.updateAppWidgetState
 import coil.ImageLoader
 import coil.request.ImageRequest
-import com.futbolarg.futbolargentinowidgets.data.preferences.AppSettings
 import com.futbolarg.futbolargentinowidgets.data.preferences.WidgetPreferences
 import com.futbolarg.futbolargentinowidgets.data.repository.MatchRepository
 import com.futbolarg.futbolargentinowidgets.domain.model.Match
@@ -45,15 +44,11 @@ import javax.inject.Singleton
 class WidgetUpdater @Inject constructor(
     @ApplicationContext private val context: Context,
     private val repository: MatchRepository,
-    private val widgetPreferences: WidgetPreferences,
-    private val appSettings: AppSettings
+    private val widgetPreferences: WidgetPreferences
 ) {
 
     companion object {
         private const val TAG = "WidgetUpdater"
-
-        // Fondo por defecto del widget (gris oscuro translúcido)
-        private const val DEFAULT_BG_ARGB = 0xE6101418.toInt()
     }
 
     // Actualizar TODAS las instancias del widget
@@ -105,21 +100,11 @@ class WidgetUpdater @Inject constructor(
             emptyList()
         }
 
-        // Fondo: color oficial del club (oscurecido para que el
-        // texto blanco siga legible) si el ajuste está activo
-        val bgColor = if (team != null && appSettings.isUseTeamColorWidgetEnabled()) {
-            darkenTeamColor(team.colorHex)
-        } else {
-            DEFAULT_BG_ARGB
-        }
-
         updateAppWidgetState(context, glanceId) { prefs ->
             if (team == null) {
                 prefs[WidgetStateKeys.CONFIGURED] = false
                 return@updateAppWidgetState
             }
-
-            prefs[WidgetStateKeys.BG_COLOR_ARGB] = bgColor
 
             prefs[WidgetStateKeys.CONFIGURED] = true
             prefs[WidgetStateKeys.TEAM_NAME] = team.name
@@ -158,24 +143,6 @@ class WidgetUpdater @Inject constructor(
                 "${match.awayScore ?: 0} ${match.awayTeamAbbr}"
         } else {
             "${match.homeTeamAbbr} vs ${match.awayTeamAbbr}"
-        }
-    }
-
-    // Oscurece el color oficial del club para usarlo de fondo:
-    // multiplica cada canal RGB por 0.45 (los colores de club
-    // pueden ser claros — el amarillo de Boca, el celeste de
-    // Racing — y el texto del widget es blanco). Si el hex no
-    // parsea, se usa el fondo por defecto.
-    private fun darkenTeamColor(colorHex: String): Int {
-        if (colorHex.isBlank()) return DEFAULT_BG_ARGB
-        return try {
-            val rgb = colorHex.removePrefix("#").toLong(16).toInt()
-            val r = ((rgb shr 16 and 0xFF) * 0.45).toInt()
-            val g = ((rgb shr 8 and 0xFF) * 0.45).toInt()
-            val b = ((rgb and 0xFF) * 0.45).toInt()
-            (0xF2 shl 24) or (r shl 16) or (g shl 8) or b
-        } catch (e: Exception) {
-            DEFAULT_BG_ARGB
         }
     }
 
