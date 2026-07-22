@@ -36,8 +36,12 @@ const LEAGUES = {
 
 const ESPN_BASE = "https://site.api.espn.com/apis/site/v2/sports/soccer";
 
-// Ventana del fixture: días hacia atrás y hacia adelante
-const DAYS_BACK = 7;
+// Ventana del fixture.
+// DAYS_FORWARD cubre los próximos meses de calendario.
+// Hacia atrás vamos hasta el 1 de enero del año en curso: así la
+// app recibe LA TEMPORADA COMPLETA y puede construir el historial
+// de resultados y las fechas de cada torneo. Pesa unos cientos
+// de KB, pero se sirve casi siempre desde la caché del borde.
 const DAYS_FORWARD = 90;
 
 // TTL de la caché en segundos. Durante este tiempo, TODAS las
@@ -174,6 +178,11 @@ function transformEvent(event, leagueName) {
   return {
     id,
     league: leagueName,
+    // Fase del torneo. ESPN NO publica el número de fecha de la
+    // liga; sí la fase: "torneo-clausura", "round-of-32"...
+    // Para copas, altGameNote suele traer "Copa Argentina,
+    // Round of 32": nos quedamos con lo de después de la coma.
+    phase: phaseOf(event, comp),
     kickoffMillis,
     status,
     homeId: parseInt(home.team.id, 10) || 0,
@@ -194,6 +203,25 @@ function transformEvent(event, leagueName) {
 function toIntOrNull(value) {
   const n = parseInt(value, 10);
   return Number.isNaN(n) ? null : n;
+}
+
+// Nombre legible de la fase del torneo
+function phaseOf(event, comp) {
+  // Copas: "Copa Argentina, Round of 32" → "Round of 32"
+  const note = comp.altGameNote;
+  if (note && note.includes(",")) {
+    return note.split(",").pop().trim();
+  }
+  // Liga: slug del evento → "torneo-clausura" → "Torneo Clausura"
+  const slug = event.season?.slug;
+  if (slug) {
+    return slug
+      .split("-")
+      .filter((w) => w.length > 0)
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(" ");
+  }
+  return "";
 }
 
 // Espejo de MatchStatus.fromEspn() en Kotlin. El Worker envía
@@ -251,11 +279,12 @@ async function buildTeams() {
 // Utilidades
 // ------------------------------------------------------------
 
-// Rango "YYYYMMDD-YYYYMMDD" en UTC (formato que espera ESPN)
+// Rango "YYYYMMDD-YYYYMMDD" en UTC (formato que espera ESPN):
+// del 1 de enero del año en curso hasta +90 días
 function dateRange() {
   const fmt = (d) => d.toISOString().slice(0, 10).replaceAll("-", "");
   const now = Date.now();
-  const from = new Date(now - DAYS_BACK * 86400000);
+  const from = new Date(Date.UTC(new Date(now).getUTCFullYear(), 0, 1));
   const to = new Date(now + DAYS_FORWARD * 86400000);
   return `${fmt(from)}-${fmt(to)}`;
 }

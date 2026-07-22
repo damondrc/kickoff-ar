@@ -72,6 +72,22 @@ interface MatchDao {
     )
     fun getUpcomingMatches(now: Long): Flow<List<MatchEntity>>
 
+    // TODOS los partidos guardados (temporada completa: jugados y
+    // por jugar). Alimentan el historial y el calendario, que
+    // necesitan ver el pasado.
+    @Query("SELECT * FROM matches ORDER BY kickoffMillis ASC")
+    fun getAllMatches(): Flow<List<MatchEntity>>
+
+    // Partidos ya terminados, del más reciente al más viejo
+    @Query(
+        """
+        SELECT * FROM matches
+        WHERE status = 'FINISHED'
+        ORDER BY kickoffMillis DESC
+        """
+    )
+    fun getFinishedMatches(): Flow<List<MatchEntity>>
+
     // Próximo kickoff de un partido programado de un equipo
     // (lo usa el programador de sincronizaciones)
     @Query(
@@ -135,7 +151,13 @@ interface MatchDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertMatches(matches: List<MatchEntity>)
 
-    // Limpieza: borra partidos terminados muy viejos
-    @Query("DELETE FROM matches WHERE status = 'FINISHED' AND kickoffMillis < :olderThan")
-    suspend fun deleteOldFinishedMatches(olderThan: Long)
+    // Limpieza: borra partidos de temporadas anteriores.
+    //
+    // v1.2: antes borrábamos los terminados de hace más de 30
+    // días; ahora el historial de la temporada es una función de
+    // la app, así que solo se purga lo verdaderamente viejo (más
+    // de un año). Un partido pesa ~200 bytes: una temporada
+    // completa de 4 competiciones ronda los 200 KB.
+    @Query("DELETE FROM matches WHERE kickoffMillis < :olderThan")
+    suspend fun deleteMatchesOlderThan(olderThan: Long)
 }

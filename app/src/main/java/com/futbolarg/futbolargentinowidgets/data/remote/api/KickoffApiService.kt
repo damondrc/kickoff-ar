@@ -21,9 +21,10 @@ import retrofit2.http.Query
 
 interface KickoffApiService {
 
-    // Todos los partidos de las 4 competiciones, ya transformados
+    // Todos los partidos de las 4 competiciones, ya transformados.
+    // "v" rompe la caché de borde del formato anterior (ver getTeams)
     @GET("fixtures")
-    suspend fun getFixtures(): ProxyFixturesResponse
+    suspend fun getFixtures(@Query("v") version: Int = 2): ProxyFixturesResponse
 
     // Los 30 equipos de la Liga Profesional.
     // El parámetro "v" rompe la caché de borde vieja: la caché

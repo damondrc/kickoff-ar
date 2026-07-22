@@ -86,8 +86,8 @@ class MatchRepository @Inject constructor(
             val entities = response.matches.toEntityListFromProxy()
             matchDao.insertMatches(entities)
 
-            val cutoff = System.currentTimeMillis() - TimeUnit.DAYS.toMillis(30)
-            matchDao.deleteOldFinishedMatches(cutoff)
+            val cutoff = System.currentTimeMillis() - TimeUnit.DAYS.toMillis(365)
+            matchDao.deleteMatchesOlderThan(cutoff)
 
             Log.d(TAG, "Proxy OK: ${entities.size} partidos (datos de ${response.updatedAt})")
             true
@@ -124,8 +124,8 @@ class MatchRepository @Inject constructor(
 
         if (anySuccess) {
             // Limpieza: borra terminados de hace más de 30 días
-            val cutoff = System.currentTimeMillis() - TimeUnit.DAYS.toMillis(30)
-            matchDao.deleteOldFinishedMatches(cutoff)
+            val cutoff = System.currentTimeMillis() - TimeUnit.DAYS.toMillis(365)
+            matchDao.deleteMatchesOlderThan(cutoff)
         }
 
         return anySuccess
@@ -169,6 +169,16 @@ class MatchRepository @Inject constructor(
     fun getUpcomingMatches(): Flow<List<Match>> {
         return matchDao.getUpcomingMatches(System.currentTimeMillis())
             .map { it.toDomainModelList() }
+    }
+
+    // Temporada completa: jugados y por jugar (calendario)
+    fun getAllMatches(): Flow<List<Match>> {
+        return matchDao.getAllMatches().map { it.toDomainModelList() }
+    }
+
+    // Solo los ya jugados, del más reciente al más viejo (historial)
+    fun getFinishedMatches(): Flow<List<Match>> {
+        return matchDao.getFinishedMatches().map { it.toDomainModelList() }
     }
 
     // Próximo kickoff programado de un equipo (programador de sync)

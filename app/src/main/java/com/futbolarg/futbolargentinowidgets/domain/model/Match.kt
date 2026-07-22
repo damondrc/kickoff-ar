@@ -31,6 +31,9 @@ data class Match(
     // Competición ("Liga Profesional", "Copa Argentina", etc.)
     val leagueName: String,
 
+    // Fase del torneo ("Torneo Clausura", "Round of 32"...)
+    val phase: String = "",
+
     val status: MatchStatus,
     val homeScore: Int?,          // null si no empezó
     val awayScore: Int?           // null si no empezó

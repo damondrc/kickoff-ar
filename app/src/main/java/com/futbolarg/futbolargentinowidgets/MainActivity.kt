@@ -34,6 +34,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -160,6 +161,12 @@ private fun KickoffApp(viewModel: MainViewModel) {
                 NavigationBarItem(
                     selected = selectedTab == 1,
                     onClick = { selectedTab = 1 },
+                    icon = { Icon(Icons.Filled.List, contentDescription = null) },
+                    label = { Text("Historial") }
+                )
+                NavigationBarItem(
+                    selected = selectedTab == 2,
+                    onClick = { selectedTab = 2 },
                     icon = { Icon(Icons.Filled.Settings, contentDescription = null) },
                     label = { Text("Ajustes") }
                 )
@@ -168,8 +175,152 @@ private fun KickoffApp(viewModel: MainViewModel) {
     ) { innerPadding ->
         when (selectedTab) {
             0 -> PartidosScreen(viewModel, Modifier.padding(innerPadding))
+            1 -> HistorialScreen(viewModel, Modifier.padding(innerPadding))
             else -> AjustesScreen(viewModel, Modifier.padding(innerPadding))
         }
+    }
+}
+
+// ============================================================
+// Pestaña HISTORIAL
+// ============================================================
+// Resultados ya jugados, agrupados por jornada y filtrables por
+// competición. Dentro de cada fecha, los partidos de los equipos
+// que sigues aparecen primero.
+// ============================================================
+
+@Composable
+private fun HistorialScreen(viewModel: MainViewModel, modifier: Modifier = Modifier) {
+    val league by viewModel.historyLeague.collectAsStateWithLifecycle()
+    val matches by viewModel.historyMatches.collectAsStateWithLifecycle()
+    val followedTeams by viewModel.visibleTeams.collectAsStateWithLifecycle()
+    val favoriteIds = remember(followedTeams) { followedTeams.map { it.id }.toSet() }
+
+    // Paginación: se muestran de a PAGE_SIZE resultados
+    var visibleCount by remember(league) { mutableIntStateOf(PAGE_SIZE) }
+    val visible = matches.take(visibleCount)
+
+    LazyColumn(
+        modifier = modifier.fillMaxSize(),
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        item {
+            Text(
+                text = "Historial",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(top = 8.dp, bottom = 8.dp)
+            )
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(Constants.LEAGUES.values.toList()) { name ->
+                    FilterChip(
+                        selected = league == name,
+                        onClick = { viewModel.setHistoryLeague(name) },
+                        label = { Text(name) }
+                    )
+                }
+            }
+        }
+
+        if (matches.isEmpty()) {
+            item {
+                Text(
+                    text = "Todavía no hay partidos jugados de esta competición " +
+                        "en la temporada.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+            }
+        } else {
+            // Agrupados por el día real en que se jugaron
+            visible.groupBy { DateFormatting.formatDayHeader(it.kickoffMillis) }
+                .forEach { (day, dayMatches) ->
+                    item(key = "hist-dia-$day") {
+                        Text(
+                            text = day,
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(top = 8.dp)
+                        )
+                    }
+                    items(dayMatches, key = { "hist-${it.id}" }) { match ->
+                        Card(modifier = Modifier.fillMaxWidth()) {
+                            ResultRow(
+                                match = match,
+                                isFavorite = match.homeTeamId in favoriteIds ||
+                                    match.awayTeamId in favoriteIds
+                            )
+                        }
+                    }
+                }
+
+            if (matches.size > visibleCount) {
+                item(key = "hist-mas") {
+                    ShowMoreButton(
+                        remaining = matches.size - visibleCount,
+                        onClick = { visibleCount += PAGE_SIZE }
+                    )
+                }
+            }
+        }
+    }
+}
+
+// Cuántos partidos se muestran por página en Historial y en la
+// vista de Lista del fixture
+private const val PAGE_SIZE = 20
+
+@Composable
+private fun ShowMoreButton(remaining: Int, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        TextButton(onClick = onClick) {
+            Text("Mostrar más ($remaining restantes)")
+        }
+    }
+}
+
+// Fila de resultado: [escudo] RIV 2 - 1 CAT [escudo]
+@Composable
+private fun ResultRow(match: Match, isFavorite: Boolean) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        AsyncImage(
+            model = match.homeTeamLogo,
+            contentDescription = null,
+            modifier = Modifier.size(22.dp)
+        )
+        Text(
+            text = "${match.homeTeamAbbr} ${match.homeScore ?: 0} - " +
+                "${match.awayScore ?: 0} ${match.awayTeamAbbr}",
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = if (isFavorite) FontWeight.Bold else FontWeight.Normal,
+            modifier = Modifier.padding(horizontal = 8.dp)
+        )
+        AsyncImage(
+            model = match.awayTeamLogo,
+            contentDescription = null,
+            modifier = Modifier.size(22.dp)
+        )
+        Text(
+            text = DateFormatting.formatDayHeader(match.kickoffMillis),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.End,
+            modifier = Modifier
+                .weight(1f)
+                .padding(start = 8.dp)
+        )
     }
 }
 
@@ -180,11 +331,16 @@ private fun KickoffApp(viewModel: MainViewModel) {
 @Composable
 private fun PartidosScreen(viewModel: MainViewModel, modifier: Modifier = Modifier) {
     val visibleTeams by viewModel.visibleTeams.collectAsStateWithLifecycle()
-    val hiddenCount by viewModel.hiddenTeamCount.collectAsStateWithLifecycle()
+    val hasHiddenTeams by viewModel.hasHiddenTeams.collectAsStateWithLifecycle()
     val misEquipos by viewModel.misEquipos.collectAsStateWithLifecycle()
     val fixture by viewModel.fixture.collectAsStateWithLifecycle()
+    val season by viewModel.seasonMatches.collectAsStateWithLifecycle()
     val leagueFilter by viewModel.leagueFilter.collectAsStateWithLifecycle()
     val fixtureView by viewModel.fixtureView.collectAsStateWithLifecycle()
+
+    // Cuántos partidos se ven en la vista de Lista. Se reinicia
+    // al cambiar de competición (remember con clave)
+    var fixtureVisibleCount by remember(leagueFilter) { mutableIntStateOf(PAGE_SIZE) }
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),
@@ -204,8 +360,9 @@ private fun PartidosScreen(viewModel: MainViewModel, modifier: Modifier = Modifi
         if (visibleTeams.isEmpty()) {
             item {
                 Text(
-                    text = if (hiddenCount > 0) {
-                        "Todos tus equipos están ocultos."
+                    text = if (hasHiddenTeams) {
+                        "Quitaste todos tus equipos de esta sección. Agrega un " +
+                            "widget para seguir a alguno de nuevo."
                     } else {
                         "Agrega un widget a tu pantalla de inicio para seguir a un equipo."
                     },
@@ -266,26 +423,40 @@ private fun PartidosScreen(viewModel: MainViewModel, modifier: Modifier = Modifi
             }
 
             fixtureView == FixtureView.LIST -> {
-                val grouped = fixture.groupBy {
-                    DateFormatting.formatDayHeader(it.kickoffMillis)
-                }
-                grouped.forEach { (day, matches) ->
-                    item(key = "dia-$day") {
-                        Text(
-                            text = day,
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(top = 8.dp)
-                        )
+                // Paginado: se muestran de a 20 para no volcar
+                // toda la temporada de golpe en la pantalla
+                val visible = fixture.take(fixtureVisibleCount)
+
+                visible.groupBy { DateFormatting.formatDayHeader(it.kickoffMillis) }
+                    .forEach { (day, matches) ->
+                        item(key = "dia-$day") {
+                            Text(
+                                text = day,
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(top = 8.dp)
+                            )
+                        }
+                        items(matches, key = { it.id }) { match ->
+                            FixtureMatchRow(match)
+                        }
                     }
-                    items(matches, key = { it.id }) { match ->
-                        FixtureMatchRow(match)
+
+                if (fixture.size > fixtureVisibleCount) {
+                    item(key = "fixture-mas") {
+                        ShowMoreButton(
+                            remaining = fixture.size - fixtureVisibleCount,
+                            onClick = { fixtureVisibleCount += PAGE_SIZE }
+                        )
                     }
                 }
             }
 
             else -> item(key = "calendario") {
-                CalendarSection(fixture)
+                // El calendario usa la TEMPORADA COMPLETA (no solo
+                // lo que viene): así se pueden consultar también
+                // los resultados de días pasados
+                CalendarSection(season.filter { leagueFilter == null || it.leagueName == leagueFilter })
             }
         }
     }
@@ -420,9 +591,10 @@ private fun TeamCard(team: Team, matches: List<Match>, onHide: () -> Unit) {
             title = { Text("¿Quitar de Mis equipos?") },
             text = {
                 Text(
-                    "${team.name} dejará de verse en esta sección. " +
-                        "Su widget sigue funcionando normal, y puedes " +
-                        "restaurarlo cuando quieras."
+                    "${team.name} dejará de verse en esta sección y pasará " +
+                        "a ser un equipo más de la liga. Su widget sigue " +
+                        "funcionando normal. Puedes deshacerlo desde Ajustes " +
+                        "durante las próximas 2 semanas."
                 )
             },
             confirmButton = {
@@ -499,10 +671,13 @@ private fun FixtureMatchRow(match: Match) {
                 horizontalAlignment = Alignment.End
             ) {
                 Text(
-                    text = if (match.status.isLive) {
-                        "● Jugando"
-                    } else {
-                        DateFormatting.formatTime(match.kickoffMillis)
+                    text = when {
+                        match.status.isLive -> "● Jugando"
+                        // Partido ya jugado: el marcador vale más
+                        // que la hora (calendario en días pasados)
+                        match.status.isFinished ->
+                            "${match.homeScore ?: 0} - ${match.awayScore ?: 0}"
+                        else -> DateFormatting.formatTime(match.kickoffMillis)
                     },
                     style = MaterialTheme.typography.bodyMedium,
                     color = if (match.status.isLive) {
@@ -676,7 +851,7 @@ private fun AjustesScreen(viewModel: MainViewModel, modifier: Modifier = Modifie
     val notifyBefore by viewModel.notifyBeforeStart.collectAsStateWithLifecycle()
     val notifyKickoff by viewModel.notifyKickoff.collectAsStateWithLifecycle()
     val notifyFinished by viewModel.notifyFinished.collectAsStateWithLifecycle()
-    val hiddenCount by viewModel.hiddenTeamCount.collectAsStateWithLifecycle()
+    val restorableTeams by viewModel.restorableTeams.collectAsStateWithLifecycle()
     val context = androidx.compose.ui.platform.LocalContext.current
 
     var pendingToggle by remember { mutableStateOf<(() -> Unit)?>(null) }
@@ -745,36 +920,66 @@ private fun AjustesScreen(viewModel: MainViewModel, modifier: Modifier = Modifie
         }
         item {
             Card(modifier = Modifier.fillMaxWidth()) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column(
+                Column(modifier = Modifier.padding(vertical = 8.dp)) {
+                    Row(
                         modifier = Modifier
-                            .weight(1f)
-                            .padding(end = 16.dp)
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text(
-                            text = "Equipos ocultos",
-                            style = MaterialTheme.typography.bodyLarge
-                        )
-                        Text(
-                            text = if (hiddenCount > 0) {
-                                "$hiddenCount equipo(s) fuera de \"Mis equipos\""
-                            } else {
-                                "No has ocultado ningún equipo"
-                            },
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(end = 16.dp)
+                        ) {
+                            Text(
+                                text = "Equipos quitados",
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                            Text(
+                                text = if (restorableTeams.isEmpty()) {
+                                    "Nada que deshacer"
+                                } else {
+                                    "Puedes deshacer durante 2 semanas; después, " +
+                                        "para volver a seguirlos agrega un widget"
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        if (restorableTeams.size > 1) {
+                            TextButton(onClick = { viewModel.restoreHiddenTeams() }) {
+                                Text("Todos")
+                            }
+                        }
                     }
-                    TextButton(
-                        onClick = { viewModel.restoreHiddenTeams() },
-                        enabled = hiddenCount > 0
-                    ) { Text("Restaurar") }
+
+                    // Uno por uno, con su escudo
+                    restorableTeams.forEach { team ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(start = 16.dp, end = 8.dp, top = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            AsyncImage(
+                                model = team.logoUrl,
+                                contentDescription = null,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Text(
+                                text = team.name,
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .padding(start = 12.dp)
+                            )
+                            TextButton(onClick = { viewModel.restoreTeam(team.id) }) {
+                                Text("Restaurar")
+                            }
+                        }
+                    }
                 }
             }
         }

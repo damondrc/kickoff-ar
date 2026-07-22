@@ -28,6 +28,8 @@ data class ProxyFixturesResponse(
 data class ProxyMatchDto(
     @SerializedName("id") val id: Long?,
     @SerializedName("league") val league: String?,
+    // Fase del torneo: "Torneo Clausura", "Round of 32"...
+    @SerializedName("phase") val phase: String? = null,
     @SerializedName("kickoffMillis") val kickoffMillis: Long?,
     @SerializedName("status") val status: String?,
 

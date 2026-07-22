@@ -48,12 +48,26 @@ data class EspnEventDto(
     @SerializedName("date")
     val date: String?,
 
+    // Fase del torneo a la que pertenece el evento
+    @SerializedName("season")
+    val season: EspnEventSeasonDto? = null,
+
     // Un evento tiene una sola "competition" (el partido en sí)
     @SerializedName("competitions")
     val competitions: List<EspnCompetitionDto> = emptyList()
 )
 
+data class EspnEventSeasonDto(
+    // "torneo-clausura", "round-of-32", "apertura---final"...
+    @SerializedName("slug")
+    val slug: String?
+)
+
 data class EspnCompetitionDto(
+    // "Copa Argentina, Round of 32" en copas; genérico en liga
+    @SerializedName("altGameNote")
+    val altGameNote: String? = null,
+
     @SerializedName("status")
     val status: EspnStatusDto?,
 

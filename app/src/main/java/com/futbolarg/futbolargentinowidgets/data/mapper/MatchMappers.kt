@@ -76,6 +76,17 @@ fun EspnEventDto.toEntity(leagueName: String): MatchEntity? {
     val statusType = competition.status?.type
     val status = MatchStatus.fromEspn(statusType?.state, statusType?.name)
 
+    // Fase: en copas ESPN la pone en altGameNote ("Copa
+    // Argentina, Round of 32"); en liga, el slug del evento
+    val phase = competition.altGameNote
+        ?.takeIf { it.contains(",") }
+        ?.substringAfterLast(",")
+        ?.trim()
+        ?: season?.slug.orEmpty()
+            .split("-")
+            .filter { it.isNotBlank() }
+            .joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } }
+
     // ESPN manda score "0" incluso antes de empezar.
     // Solo lo tomamos como marcador real si el partido está
     // en juego o terminado.
@@ -93,6 +104,7 @@ fun EspnEventDto.toEntity(leagueName: String): MatchEntity? {
         awayTeamLogo = awayTeam.logo ?: "",
         kickoffMillis = kickoff,
         leagueName = leagueName,
+        phase = phase,
         status = status.name,
         homeScore = if (scoresValid) home.score?.toIntOrNull() else null,
         awayScore = if (scoresValid) away.score?.toIntOrNull() else null
@@ -120,6 +132,7 @@ fun MatchEntity.toDomainModel(): Match {
         awayTeamLogo = awayTeamLogo,
         kickoffMillis = kickoffMillis,
         leagueName = leagueName,
+        phase = phase,
         status = MatchStatus.fromName(status),
         homeScore = homeScore,
         awayScore = awayScore
@@ -164,6 +177,7 @@ fun ProxyMatchDto.toEntity(): MatchEntity? {
         awayTeamLogo = awayLogo ?: "",
         kickoffMillis = kickoffMillis ?: return null,
         leagueName = league ?: "",
+        phase = phase ?: "",
         // fromName valida: si llega algo raro, queda UNKNOWN
         status = MatchStatus.fromName(status ?: "").name,
         homeScore = homeScore,

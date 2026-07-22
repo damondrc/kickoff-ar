@@ -12,6 +12,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -44,14 +45,27 @@ class AppSettings @Inject constructor(
         // Avisar cuando termina (con el resultado final)
         val NOTIFY_FINISHED = booleanPreferencesKey("notify_finished")
 
-        // Equipos ocultados de la sección "Mis equipos" (ids como
-        // String porque DataStore no tiene Set<Int>)
+        // Equipos QUITADOS de "Mis equipos". Cada entrada es
+        // "idEquipo:momentoEnQueSeQuitó" (DataStore no tiene
+        // Set<Int> ni mapas).
+        //
+        // SEMÁNTICA (importante): quitar es definitivo — el
+        // equipo deja de estar en "Mis equipos" y se comporta
+        // como cualquier otro de la liga. Lo que caduca a las 2
+        // semanas es la VENTANA PARA DESHACER: durante ese
+        // tiempo aparece en Ajustes con un botón "Restaurar";
+        // después desaparece de esa lista, pero sigue fuera de
+        // "Mis equipos". Para volver a seguirlo basta con
+        // configurar un widget con ese equipo.
         //
         // Nota: en la v1.1 se eliminó el tinte por color de equipo
         // (widget y tema): los colores oficiales de los clubes
         // rompían la legibilidad con demasiada frecuencia. La
         // paleta ahora es uniforme.
         val HIDDEN_TEAM_IDS = stringSetPreferencesKey("hidden_team_ids")
+
+        // Cuánto tiempo se puede deshacer el quitado
+        private val UNDO_WINDOW_MILLIS = TimeUnit.DAYS.toMillis(14)
     }
 
     // ---------- Flows reactivos (para la UI) ----------
@@ -76,24 +90,61 @@ class AppSettings @Inject constructor(
     suspend fun isNotifyFinishedEnabled(): Boolean =
         context.settingsDataStore.data.first()[NOTIFY_FINISHED] ?: false
 
-    // ---------- Equipos ocultos en "Mis equipos" ----------
+    // ---------- Equipos quitados de "Mis equipos" ----------
 
+    // TODOS los quitados, sin importar hace cuánto: la exclusión
+    // de "Mis equipos" es permanente
     val hiddenTeamIds: Flow<Set<Int>> =
         context.settingsDataStore.data.map { prefs ->
-            (prefs[HIDDEN_TEAM_IDS] ?: emptySet())
-                .mapNotNull { it.toIntOrNull() }
-                .toSet()
+            parseHidden(prefs[HIDDEN_TEAM_IDS]).keys
+        }
+
+    // Solo los quitados hace menos de 2 semanas: son los que
+    // Ajustes ofrece restaurar. Pasada la ventana, el equipo
+    // deja de listarse (pero sigue fuera de "Mis equipos")
+    val restorableTeamIds: Flow<Set<Int>> =
+        context.settingsDataStore.data.map { prefs ->
+            val now = System.currentTimeMillis()
+            parseHidden(prefs[HIDDEN_TEAM_IDS])
+                .filterValues { now - it < UNDO_WINDOW_MILLIS }
+                .keys
         }
 
     suspend fun hideTeam(teamId: Int) {
         context.settingsDataStore.edit { prefs ->
-            prefs[HIDDEN_TEAM_IDS] =
-                (prefs[HIDDEN_TEAM_IDS] ?: emptySet()) + teamId.toString()
+            val actuales = parseHidden(prefs[HIDDEN_TEAM_IDS]).toMutableMap()
+            actuales[teamId] = System.currentTimeMillis()
+            prefs[HIDDEN_TEAM_IDS] = actuales.map { (id, ts) -> "$id:$ts" }.toSet()
+        }
+    }
+
+    // Deshacer: el equipo vuelve a "Mis equipos". También se
+    // llama al configurar un widget con ese equipo — pedirlo
+    // explícitamente es señal de que se lo quiere seguir de nuevo
+    suspend fun restoreTeam(teamId: Int) {
+        context.settingsDataStore.edit { prefs ->
+            prefs[HIDDEN_TEAM_IDS] = parseHidden(prefs[HIDDEN_TEAM_IDS])
+                .filterKeys { it != teamId }
+                .map { (id, ts) -> "$id:$ts" }
+                .toSet()
         }
     }
 
     suspend fun restoreHiddenTeams() {
         context.settingsDataStore.edit { it.remove(HIDDEN_TEAM_IDS) }
+    }
+
+    // "16:1784000000000" → 16 to 1784000000000, descartando
+    // entradas corruptas. Formato viejo (solo el id): se le
+    // asigna 0 = quitado hace mucho, sin ventana de deshacer.
+    private fun parseHidden(raw: Set<String>?): Map<Int, Long> {
+        return (raw ?: emptySet())
+            .mapNotNull { entry ->
+                val parts = entry.split(":")
+                val id = parts.getOrNull(0)?.toIntOrNull() ?: return@mapNotNull null
+                id to (parts.getOrNull(1)?.toLongOrNull() ?: 0L)
+            }
+            .toMap()
     }
 
     // ---------- Escritura ----------

@@ -41,6 +41,13 @@ data class MatchEntity(
     // "Copa Argentina", "Libertadores", "Sudamericana")
     val leagueName: String,
 
+    // Fase dentro de la competición: "Torneo Clausura",
+    // "Round of 32"... Es lo que ESPN sí publica. El NÚMERO de
+    // fecha de liga no existe en la API y se decidió NO
+    // derivarlo: la heurística resultaba imprecisa y es
+    // preferible agrupar por el día real de juego.
+    val phase: String = "",
+
     // Nombre del enum MatchStatus (ej: "SCHEDULED", "FINISHED")
     val status: String,
 
