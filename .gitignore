@@ -28,3 +28,6 @@ app/google-services.json
 
 # Configuración personal del IDE (Android Studio la regenera)
 .idea/
+
+# Salidas del APK/AAB firmado
+/app/release/
